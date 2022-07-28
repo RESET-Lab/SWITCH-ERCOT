@@ -1,0 +1,7 @@
+generation_project,timestamp,gen_dbid,gen_tech,gen_load_zone,gen_energy_source,tp_weight_in_year_hrs,period,DispatchGen_MW,Energy_GWh_typical_yr,VariableCost_per_yr,DispatchEmissions_tCO2_per_typical_yr
+S-Geothermal,2025011512,33.0,Geothermal,South,Geothermal,4383.0,2020,4.44411428571429,19.478552914285736,561566.6805188577,0
+S-Geothermal,2025011600,33.0,Geothermal,South,Geothermal,4383.0,2020,4.44411428571429,19.478552914285736,561566.6805188577,0
+S-Central_PV-1,2025011512,41.0,Central_PV,South,Solar,4383.0,2020,0.597799999999999,2.6201573999999956,0.0,0
+S-Central_PV-1,2025011600,41.0,Central_PV,South,Solar,4383.0,2020,0.0,0.0,0.0,0
+Battery_Storage,2025011512,Battery_Storage,Battery_Storage,South,Electricity,4383.0,2020,2.95808571428571,12.965289685714268,129.65289685714268,0
+Battery_Storage,2025011600,Battery_Storage,Battery_Storage,South,Electricity,4383.0,2020,0.0,0.0,0.0,0
