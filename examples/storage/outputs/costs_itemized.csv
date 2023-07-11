@@ -1,0 +1,5 @@
+PERIOD,Component,Component_type,AnnualCost_NPV,AnnualCost_Real
+2020,TotalGenFixedCosts,annual,16582355.869954567,2367608.771123013
+2020,StorageEnergyFixedCost,annual,35397.26134542303,5053.9782822419165
+2020,GenVariableOMCostsInTP,timepoint,7867155.781732426,1123263.0139345725
+2020,FuelCostsPerTP,timepoint,0.0,0.0
