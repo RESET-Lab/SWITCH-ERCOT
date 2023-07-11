@@ -61,7 +61,7 @@ def define_components(mod):
     period.
 
     """
-
+    """
     mod.f_rps_eligible = Param(
         mod.FUELS,
         within=Boolean,
@@ -69,13 +69,14 @@ def define_components(mod):
     mod.RPS_ENERGY_SOURCES = Set(
         initialize=lambda m: set(m.NON_FUEL_ENERGY_SOURCES) | \
             set(f for f in m.FUELS if m.f_rps_eligible[f]))
-
-    mod.RPS_PERIODS = Set(
-        validate=lambda m, p: p in m.PERIODS)
+    """
+    mod.RPS_YEARS = Set(dimen=2)
+        #validate=lambda m, p: p in m.PERIODS)
     mod.rps_target = Param(
-        mod.RPS_PERIODS,
-        within=PercentFraction)
-
+        mod.RPS_YEARS,
+        within=PercentFraction,
+        default = 0)
+    """
     mod.RPSFuelEnergy = Expression(
         mod.RPS_PERIODS,
         rule=lambda m, p: sum(
@@ -93,12 +94,20 @@ def define_components(mod):
         rule=lambda m, p: sum(m.DispatchGen[g, t] * m.tp_weight[t]
             for g in m.VARIABLE_GENS#m.NON_FUEL_BASED_GENS
                 for t in m.TPS_FOR_GEN_IN_PERIOD[g, p]))
+    """
+    mod.RPSEnergy = Expression(
+        mod.RPS_YEARS,
+        rule = lambda m, e, p: sum(
+            m.DispatchGen[g, t] * m.tp_weight[t]
+                for g in m.GENERATION_PROJECTS if m.gen_energy_source[g] == e
+                    for t in m.TPS_FOR_GEN_IN_PERIOD[g, p]
+        ))
 
     mod.RPS_Enforce_Target = Constraint(
-        mod.RPS_PERIODS,
-        rule=lambda m, p: (m.RPSFuelEnergy[p] + m.RPSNonFuelEnergy[p] >=
+        mod.RPS_YEARS,
+        rule=lambda m, e, p: m.RPSEnergy[e, p] >=
             #m.rps_target[p] * total_demand_in_period(m, p)))
-            m.rps_target[p] * total_generation_in_period(m, p)))
+            m.rps_target[e, p] * total_generation_in_period(m, p))
 
 
 def total_generation_in_period(model, period):
@@ -130,15 +139,15 @@ def load_inputs(mod, switch_data, inputs_dir):
 
     """
 
-    switch_data.load_aug(
-        filename=os.path.join(inputs_dir, 'fuels.csv'),
-        select=('fuel','f_rps_eligible'),
-        optional_params=['f_rps_eligible'],
-        param=(mod.f_rps_eligible,))
+    #switch_data.load_aug(
+    #    filename=os.path.join(inputs_dir, 'fuels.csv'),
+    #    select=('fuel','f_rps_eligible'),
+    #    optional_params=['f_rps_eligible'],
+    #    param=(mod.f_rps_eligible,))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'rps_targets.csv'),
         autoselect=True,
-        index=mod.RPS_PERIODS,
+        index=mod.RPS_YEARS,
         param=(mod.rps_target,))
 
 
@@ -149,21 +158,21 @@ def post_solve(instance, outdir):
     """
 
     import switch_model.reporting as reporting
-    def get_row(m, p):
-        row = (p,)
-        row += (m.RPSFuelEnergy[p] / 1000,)
-        row += (m.RPSNonFuelEnergy[p] / 1000,)
-        row += (total_generation_in_period(m,p) / 1000,)
-        row += ((m.RPSFuelEnergy[p] + m.RPSNonFuelEnergy[p]) /
-            total_generation_in_period(m,p),)
-        row += (total_demand_in_period(m, p),)
-        row += ((m.RPSFuelEnergy[p] + m.RPSNonFuelEnergy[p]) /
-            total_demand_in_period(m, p),)
+    def get_row(m, e, p):
+        row = (e,)
+        row += (p,)
+        row += (m.RPSEnergy[e,p] / 1000,)
+        #row += (total_generation_in_period(m,p) / 1000,)
+        #row += ((m.RPSFuelEnergy[p] + m.RPSNonFuelEnergy[p]) /
+        #    total_generation_in_period(m,p),)
+        #row += (total_demand_in_period(m, p),)
+        #row += ((m.RPSFuelEnergy[p] + m.RPSNonFuelEnergy[p]) /
+        #    total_demand_in_period(m, p),)
         return row
     reporting.write_table(
-        instance, instance.RPS_PERIODS,
+        instance, instance.RPS_YEARS,
         output_file=os.path.join(outdir, "rps_energy.csv"),
-        headings=("PERIOD", "RPSFuelEnergyGWh", "RPSNonFuelEnergyGWh",
-            "TotalGenerationInPeriodGWh", "RPSGenFraction",
-            "TotalSalesInPeriodGWh", "RPSSalesFraction"),
+        headings=("RPS_FUELS", "PERIOD", "RPSEnergyGWh"),
+            #"TotalGenerationInPeriodGWh", "RPSGenFraction",
+            #"TotalSalesInPeriodGWh", "RPSSalesFraction"),
         values=get_row)

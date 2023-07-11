@@ -13,3 +13,5 @@ examples/3zone_toy_hydrogen/*
 switch_model/hydrogen.py
 switch_model/hydrogen_onenode_old.py
 switch_model/mga_old.py
+switch_model/mga_lz.py
+switch_model/mga_hsj.py

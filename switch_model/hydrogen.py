@@ -149,8 +149,8 @@ def define_components(m):
     m.hydrogen_electrolyzer_life_years = Param()
     m.BuildElectrolyzerKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)
     m.ElectrolyzerCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildElectrolyzerKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]))
-        #if ((m.period_start[p] - m.period_start[p_]) < m.hydrogen_electrolyzer_life_years)))
+        sum(m.BuildElectrolyzerKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
+        if ((m.period_start[p] - m.period_start[p_]) < m.hydrogen_electrolyzer_life_years)))
     m.DispatchElectrolyzerKgPerHour = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals) #by power sector TPS or H node TPS?
     m.Max_Dispatch_Electrolyzer = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
         m.DispatchElectrolyzerKgPerHour[z, t] <= m.ElectrolyzerCapacityKgPerHour[z, m.tp_period[t]])
@@ -185,36 +185,58 @@ def define_components(m):
     - Decide on how to incorporate CCS - Done
         - Treat blue and grey hydrogen as separate build options for simplicity with different costs and emission intensities --> Done
         - Not sure where the CO2 emissions are used in Switch, but we may want to look into that later --> Calculated in dispatch.py
-    - Minimum builds and ramping??
+    - Minimum builds (code written, not tested) and ramping??
     - Note: Unlike current fuel tracking in Switch, this does not have the option for natural gas to be unavailable in a load zone. Consider adding later
     """
 
     m.hydrogen_smr_with_ccs_capital_cost_per_kgh = Param(m.PERIODS)
     m.hydrogen_smr_with_ccs_fixed_cost_per_kgh_year = Param(m.PERIODS, default=0.0)
     m.hydrogen_smr_with_ccs_variable_cost_per_kg = Param(m.PERIODS, default=0.0)  # assumed to include any refurbishment needed
+    m.hydrogen_smr_with_ccs_min_build = Param()
     m.hydrogen_smr_with_ccs_kg_per_mmbtu = Param()
     m.hydrogen_smr_with_ccs_life_years = Param()
     m.hydrogen_smr_with_ccs_fuel_source = Param()
     m.hydrogen_smr_with_ccs_co2_per_h2 = Param()
     m.BuildSMRWithCCSKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)
     m.SMRWithCCSCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildSMRWithCCSKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]))
-        #if ((p - p_) < m.hydrogen_smr_with_ccs_life_years)))
+        sum(m.BuildSMRWithCCSKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
+        if ((p - p_) < m.hydrogen_smr_with_ccs_life_years)))
     m.DispatchSMRWithCCSKgPerHour = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals) #by power sector TPS or H node TPS?
     m.Max_Dispatch_SMR_With_CCS = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
         m.DispatchSMRWithCCSKgPerHour[z, t] <= m.SMRWithCCSCapacityKgPerHour[z, m.tp_period[t]])
 
+    #m.BuildMinSMRWithCCSCap = Var(
+    #    m.LOAD_ZONES, m.PERIODS,
+    #    within=Binary)
+    #m.Enforce_Min_Build_SMR_With_CCS = Constraint(
+    #    m.LOAD_ZONES, m.PERIODS,
+    #    rule=lambda m, z, p: (
+    #        m.BuildMinSMRWithCCSCap[z, p] * m.hydrogen_smr_with_ccs_min_build
+    #        <= m.BuildSMRWithCCSKgPerHour[z, p]))
+
     m.hydrogen_smr_no_ccs_capital_cost_per_kgh = Param(m.PERIODS)
     m.hydrogen_smr_no_ccs_fixed_cost_per_kgh_year = Param(m.PERIODS, default=0.0)
     m.hydrogen_smr_no_ccs_variable_cost_per_kg = Param(m.PERIODS, default=0.0)  # assumed to include any refurbishment needed
+    m.hydrogen_smr_no_ccs_min_build = Param()
     m.hydrogen_smr_no_ccs_kg_per_mmbtu = Param()
     m.hydrogen_smr_no_ccs_life_years = Param()
     m.hydrogen_smr_no_ccs_fuel_source = Param()
     m.hydrogen_smr_no_ccs_co2_per_h2 = Param()
     m.BuildSMRNoCCSKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)
     m.SMRNoCCSCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildSMRNoCCSKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]))
-        #if ((p - p_) < m.hydrogen_smr_no_ccs_life_years)))
+        sum(m.BuildSMRNoCCSKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
+        if ((p - p_) < m.hydrogen_smr_no_ccs_life_years)))
+
+    #m.BuildMinSMRNoCCSCap = Var(
+    #    m.LOAD_ZONES, m.PERIODS,
+    #    within=Binary)
+    #m.Enforce_Min_Build_SMR_No_CCS = Constraint(
+    #    m.LOAD_ZONES, m.PERIODS,
+    #    rule=lambda m, z, p: (
+    #        m.BuildMinSMRNoCCSCap[z, p] * m.hydrogen_smr_no_ccs_min_build
+    #        <= m.BuildSMRNoCCSKgPerHour[z, p]))
+
+
     m.DispatchSMRNoCCSKgPerHour = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals) #by power sector TPS or H node TPS?
     m.Max_Dispatch_SMR_No_CCS = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
         m.DispatchSMRNoCCSKgPerHour[z, t] <= m.SMRNoCCSCapacityKgPerHour[z, m.tp_period[t]])
@@ -244,37 +266,54 @@ def define_components(m):
 
     """
     # storage tank details
-    # to-do: Add in fixed cost
     """
-    m.hydrogen_tank_capital_cost_per_kg = Param(m.PERIODS) #energy investment
-    m.hydrogen_tank_capital_cost_per_kg_per_hour = Param(m.PERIODS) #power investment
-    m.hydrogen_tank_minimum_size_kg = Param(default=0.0)
-    m.hydrogen_tank_life_years = Param()
-    m.BuildHydrogenTankKg = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals) # in kg
-    m.BuildHydrogenTankKgPower = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals) # in kg
-    m.HydrogenTankCapacityKg = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildHydrogenTankKg[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
-        if ((p - p_) < m.hydrogen_tank_life_years)))
-    m.HydrogenTankStorageRate = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildHydrogenTankKgPower[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]))
-        #if ((p - p_) < m.hydrogen_tank_life_years)))
+    m.H2_STORAGE_PROJECTS = Set()
+    m.H2_STORAGE_BUILD_YRS = Set(
+        dimen=2,
+        initialize = m.H2_STORAGE_PROJECTS * m.PERIODS
+        )
+    m.H2_STORAGE_BUILD_YRS_ZONES = Set(
+        dimen=3,
+        initialize = m.H2_STORAGE_PROJECTS * m.LOAD_ZONES * m.PERIODS
+        )
+    m.H2_STORAGE_TPS = Set(
+        dimen=3,
+        initialize = m.H2_STORAGE_PROJECTS * m.LOAD_ZONES * m.TIMEPOINTS
+        )
+
+    m.h2_storage_capital_cost_per_kg = Param(m.H2_STORAGE_BUILD_YRS) #energy investment
+    m.h2_storage_capital_cost_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
+    m.h2_storage_fixed_om_per_kg = Param(m.H2_STORAGE_BUILD_YRS) #energy investment
+    m.h2_storage_fixed_om_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
+
+    m.h2_storage_minimum_size_kg = Param(m.H2_STORAGE_PROJECTS, default=0.0)
+    m.h2_storage_life_years = Param(m.H2_STORAGE_PROJECTS, default=20)
+    m.BuildH2StorageKg = Var(m.H2_STORAGE_BUILD_YRS_ZONES, within=NonNegativeReals) # in kg
+    m.BuildH2StorageKgPower = Var(m.H2_STORAGE_BUILD_YRS_ZONES, within=NonNegativeReals) # in kg
+    m.H2StorageCapacityKg = Expression(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
+        sum(m.BuildH2StorageKg[s, z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
+        if ((p - p_) < m.h2_storage_life_years[s])))
+    m.H2StorageCapacityKgPerHour = Expression(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
+        sum(m.BuildH2StorageKgPower[s, z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
+        if ((p - p_) < m.h2_storage_life_years[s])))
     #m.StoreHydrogenKgPerHour = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
     #    m.tp_duration_hrs[tp] * m.CompressHydrogenKgPerHour[z, tp])
-    m.StoreHydrogenKgPerHour = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
-    m.WithdrawHydrogenKgPerHour = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
-    m.HydrogenStorageStateKg = Var(m.LOAD_ZONES, m.TIMEPOINTS)#, within=NonNegativeReals, initialize=0)
 
-    m.HydrogenNetStorageKg = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m,z,tp:
-        (m.StoreHydrogenKgPerHour[z, tp] - m.WithdrawHydrogenKgPerHour[z, tp]) * m.tp_duration_hrs[tp])
+    m.StoreHydrogenKgPerHour = Var(m.H2_STORAGE_TPS, within=NonNegativeReals)
+    m.WithdrawHydrogenKgPerHour = Var(m.H2_STORAGE_TPS, within=NonNegativeReals)
+    m.HydrogenStorageStateKg = Var(m.H2_STORAGE_TPS)#, within=NonNegativeReals, initialize=0)
 
-    m.HydrogenStoreUpperLimit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
-        m.StoreHydrogenKgPerHour[z, tp] <= m.HydrogenTankStorageRate[z, m.tp_period[tp]])
+    m.HydrogenNetStorageKg = Expression(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
+        (m.StoreHydrogenKgPerHour[s, z, tp] - m.WithdrawHydrogenKgPerHour[s, z, tp]) * m.tp_duration_hrs[tp])
 
-    m.HydrogenWithdrawUpperLimit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
-        m.WithdrawHydrogenKgPerHour[z, tp] <= m.HydrogenTankStorageRate[z, m.tp_period[tp]])
+    m.HydrogenStoreUpperLimit = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
+        m.StoreHydrogenKgPerHour[s, z, tp] <= m.H2StorageCapacityKgPerHour[s, z, m.tp_period[tp]])
+
+    m.HydrogenWithdrawUpperLimit = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
+        m.WithdrawHydrogenKgPerHour[s, z, tp] <= m.H2StorageCapacityKgPerHour[s, z, m.tp_period[tp]])
 
     #m.HydrogenNetStorageLimit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
-    #    m.HydrogenNetStorageKg[z, tp] <= m.HydrogenTankStorageRate[z, m.tp_period[tp]])
+    #    m.HydrogenNetStorageKg[z, tp] <= m.H2StorageCapacityKgPerHour[z, m.tp_period[tp]])
 
     #Constraint to track storage state, but it breaks for periods with a single timepoint, so I added in something to account for that
     #That likely won't ever come up for real test cases, but it should be included so I can keep testing on the 3_zone_toy
@@ -282,20 +321,20 @@ def define_components(m):
         m.TIMESERIES,
         within=m.TIMESERIES,
         initialize=lambda m, ts: m.TIMESERIES.prevw(ts))
-    def Track_Storage_State_TP_rule(m, z, tp):
+    def Track_Storage_State_TP_rule(m, s, z, tp):
         currentTS = m.tp_ts[tp]
         currentPeriod = m.tp_period[tp]
 
         #for the rare case of a period with a single timepoint
         if m.tp_previous[tp] == tp:
-            return m.HydrogenStorageStateKg[z, tp] == (m.StoreHydrogenKgPerHour[z, tp] - m.WithdrawHydrogenKgPerHour[z, tp]) * m.tp_duration_hrs[tp]
+            return m.HydrogenStorageStateKg[s, z, tp] == (m.StoreHydrogenKgPerHour[s, z, tp] - m.WithdrawHydrogenKgPerHour[s, z, tp]) * m.tp_duration_hrs[tp]
 
         else:
-            return m.HydrogenStorageStateKg[z, tp] ==  m.HydrogenStorageStateKg[z, m.tp_previous[tp]] + \
-            m.HydrogenNetStorageKg[z, tp]
+            return m.HydrogenStorageStateKg[s, z, tp] ==  m.HydrogenStorageStateKg[s, z, m.tp_previous[tp]] + \
+            m.HydrogenNetStorageKg[s, z, tp]
             #(m.StoreHydrogenKgPerHour[z, tp] - m.WithdrawHydrogenKgPerHour[z, tp]) * m.tp_duration_hrs[tp]
 
-    m.Track_Storage_State_TP = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=Track_Storage_State_TP_rule)
+    m.Track_Storage_State_TP = Constraint(m.H2_STORAGE_TPS, rule=Track_Storage_State_TP_rule)
 
     def starting_tp_check(m, tp):
         currentTS = m.tp_ts[tp]
@@ -303,16 +342,16 @@ def define_components(m):
         return (m.TPS_IN_TS[currentTS][1]==tp and m.TPS_IN_PERIOD[currentPeriod][1] != tp)
 
     m.IS_STARTING_TP = Set(initialize=m.TIMEPOINTS, filter=starting_tp_check)
-    def Track_Storage_State_TS_rule(m, z, tp):
+    def Track_Storage_State_TS_rule(m, s, z, tp):
         currentTS = m.tp_ts[tp]
         previousTS = m.ts_previous[currentTS]
         finalPointOfSeries = m.TPS_IN_TS[previousTS][-1]
-        return m.HydrogenStorageStateKg[z, tp] == m.HydrogenStorageStateKg[z, finalPointOfSeries] + \
-        m.HydrogenNetStorageKg[z, tp]
+        return m.HydrogenStorageStateKg[s, z, tp] == m.HydrogenStorageStateKg[s, z, finalPointOfSeries] + \
+        m.HydrogenNetStorageKg[s, z, tp]
 
     #At first glance this constraint appears to work, but the behavior of the model is MUCH different once this is in place, so I need
-    #to look more closely before I can be sure
-    m.Track_Storage_State_TS = Constraint(m.LOAD_ZONES, m.IS_STARTING_TP, rule=Track_Storage_State_TS_rule)
+    #to look more closely before I can be sure. Did I check this? I think so? WHo knows anymore
+    m.Track_Storage_State_TS = Constraint(m.H2_STORAGE_PROJECTS, m.LOAD_ZONES, m.IS_STARTING_TP, rule=Track_Storage_State_TS_rule)
 
 
     #going to try a slightly different way to track annual storage. If I constrained it such that the first and last timepoint of a period
@@ -321,26 +360,22 @@ def define_components(m):
     #    m.HydrogenStorageStateKg[z, m.TPS_IN_PERIOD[p][1]] - m.HydrogenStorageStateKg[z, m.TPS_IN_PERIOD[p][-1]] == 0
     #)
 
-    m.Hydrogen_Conservation_of_Mass_Annual_Start = Constraint(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        m.HydrogenStorageStateKg[z, m.TPS_IN_PERIOD[p][1]] == 0
+    m.Hydrogen_Conservation_of_Mass_Annual_Start = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
+        m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][1]] == 0
     )
-    m.Hydrogen_Conservation_of_Mass_Annual_End = Constraint(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        m.HydrogenStorageStateKg[z, m.TPS_IN_PERIOD[p][-1]] == 0
+    m.Hydrogen_Conservation_of_Mass_Annual_End = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
+        m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][-1]] == 0
     )
 
-    """
-    #I think this constraint is unnecessary
-    #It is kind of necessary. Serves the same function as restricting StorageState to be nonnegativereals, but with some stuff that does not make sense mathematically
-    """
-    def Min_Storage_State_rule(m,z,tp):
-        if m.tp_previous == tp:
-            return m.HydrogenNetStorageKg[z,tp] >= 0
+    def Min_Storage_State_rule(m, s, z, tp):
+        if m.tp_previous[tp] == tp:
+            return m.HydrogenNetStorageKg[s, z,tp] >= 0
         else:
-            return (m.HydrogenStorageStateKg[z, m.tp_previous[tp]] + m.HydrogenNetStorageKg[z, tp]) >=0
-    m.Min_Storage_State = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=Min_Storage_State_rule)
+            return (m.HydrogenStorageStateKg[s, z, m.tp_previous[tp]] + m.HydrogenNetStorageKg[s, z, tp]) >=0
+    m.Min_Storage_State = Constraint(m.H2_STORAGE_TPS, rule=Min_Storage_State_rule)
 
-    m.Max_Storage_State = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
-        m.HydrogenStorageStateKg[z,tp] <= m.HydrogenTankCapacityKg[z, m.tp_period[tp]])
+    m.Max_Storage_State = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
+        m.HydrogenStorageStateKg[s, z, tp] <= m.H2StorageCapacityKg[s, z, m.tp_period[tp]])
 
     #Seems odd to me that the original scaled it to a single year and not to the full period, but I will run with it for now
     #Scaling by year and scaling by period lead to the same outcome in this case
@@ -355,8 +390,13 @@ def define_components(m):
 
     #Also should definitely have some type of efficiency for these since round trip efficiency is VERY relevant for this
     #Round trip is relevant for fuel cells, not the storage itself really
-    m.Hydrogen_Withdrawals.append('StoreHydrogenKgPerHour')
-    m.Hydrogen_Injections.append('WithdrawHydrogenKgPerHour')
+    m.StoreHydrogenKgPerHourZonal = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
+        sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS))
+    m.WithdrawHydrogenKgPerHourZonal = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
+        sum(m.WithdrawHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS))
+
+    m.Hydrogen_Withdrawals.append('StoreHydrogenKgPerHourZonal')
+    m.Hydrogen_Injections.append('WithdrawHydrogenKgPerHourZonal')
 
     """
     # fuel cell details
@@ -381,70 +421,6 @@ def define_components(m):
     m.Hydrogen_Withdrawals.append('ConsumeHydrogenKgPerHour')
     m.Zone_Power_Injections.append('DispatchFuelCellMW')
 
-    """
-    # compressor details
-    """
-    m.hydrogen_compressor_capital_cost_per_kg_per_hour = Param(m.PERIODS)
-    m.hydrogen_compressor_fixed_cost_per_kg_hour_year = Param(m.PERIODS, default=0.0)
-    m.hydrogen_compressor_variable_cost_per_kg = Param(m.PERIODS, default=0.0)
-    m.hydrogen_compressor_mwh_per_kg = Param()
-    m.hydrogen_compressor_life_years = Param()
-
-    m.BuildCompressorKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)  # capacity to build, measured in kg/hour of throughput
-    m.CompressorCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildCompressorKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]))
-        #if ((p - p_) < m.hydrogen_compressor_life_years)))
-
-    #Can expand these two equations to account for the compression used for other technologies like pipelines
-    m.Max_Dispatch_Compressor = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        m.StoreHydrogenKgPerHour[z, t] <= m.CompressorCapacityKgPerHour[z, m.tp_period[t]])
-
-    m.CompressHydrogenMW = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        m.StoreHydrogenKgPerHour[z, t] * m.hydrogen_compressor_mwh_per_kg
-    )
-    m.Zone_Power_Withdrawals.append('CompressHydrogenMW')
-
-    """
-    Cost calculations for hydrogen
-
-    """
-    m.HydrogenVariableCost = Expression(m.TIMEPOINTS, rule=lambda m, t:
-        sum(
-            m.DispatchElectrolyzerKgPerHour[z, t] * m.hydrogen_electrolyzer_variable_cost_per_kg[m.tp_period[t]]
-            + m.DispatchSMRWithCCSKgPerHour[z, t] * m.hydrogen_smr_with_ccs_variable_cost_per_kg[m.tp_period[t]]
-            + m.DispatchSMRNoCCSKgPerHour[z, t] * m.hydrogen_smr_no_ccs_variable_cost_per_kg[m.tp_period[t]]
-            + m.SMRFuelUseRate[z, t] * m.fuel_cost[z, m.hydrogen_smr_with_ccs_fuel_source, m.tp_period[t]]
-            + m.StoreHydrogenKgPerHour[z, t] * m.hydrogen_compressor_variable_cost_per_kg[m.tp_period[t]]
-            + m.DispatchFuelCellMW[z, t] * m.hydrogen_fuel_cell_variable_cost_per_mwh[m.tp_period[t]]
-            for z in m.LOAD_ZONES
-        )
-    )
-    m.HydrogenFixedCostAnnual = Expression(m.PERIODS, rule=lambda m, p:
-        sum(
-            m.ElectrolyzerCapacityKgPerHour[z, p] * (
-                m.hydrogen_electrolyzer_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_electrolyzer_life_years)
-                + m.hydrogen_electrolyzer_fixed_cost_per_kgh_year[p]) * m.hydrogen_electrolyzer_kg_per_mwh
-            + m.SMRWithCCSCapacityKgPerHour[z, p] * (
-                m.hydrogen_smr_with_ccs_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_smr_with_ccs_life_years)
-                + m.hydrogen_smr_with_ccs_fixed_cost_per_kgh_year[p])
-            + m.SMRNoCCSCapacityKgPerHour[z, p] * (
-                m.hydrogen_smr_no_ccs_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_smr_no_ccs_life_years)
-                + m.hydrogen_smr_no_ccs_fixed_cost_per_kgh_year[p])
-            + m.CompressorCapacityKgPerHour[z, p] * (
-                m.hydrogen_compressor_capital_cost_per_kg_per_hour[p] * crf(m.interest_rate, m.hydrogen_compressor_life_years)
-                + m.hydrogen_compressor_fixed_cost_per_kg_hour_year[p])
-            + m.HydrogenTankCapacityKg[z, p] * (
-                m.hydrogen_tank_capital_cost_per_kg[p] * crf(m.interest_rate, m.hydrogen_tank_life_years))
-            + m.HydrogenTankStorageRate[z, p] * (
-                m.hydrogen_tank_capital_cost_per_kg_per_hour[p] * crf(m.interest_rate, m.hydrogen_tank_life_years))
-            + m.FuelCellCapacityMW[z, p] * (
-                m.hydrogen_fuel_cell_capital_cost_per_mw[p] * crf(m.interest_rate, m.hydrogen_fuel_cell_life_years)
-                + m.hydrogen_fuel_cell_fixed_cost_per_mw_year[p])
-            for z in m.LOAD_ZONES
-        )
-    )
-    m.Cost_Components_Per_TP.append('HydrogenVariableCost')
-    m.Cost_Components_Per_Period.append('HydrogenFixedCostAnnual')
 
 
     """
@@ -454,66 +430,90 @@ def define_components(m):
 
     """
 
-    m.PIPELINES = Set()
-    m.pipes_hn1 = Param(m.PIPELINES, within=m.LOAD_ZONES)
-    m.pipes_hn2 = Param(m.PIPELINES, within=m.LOAD_ZONES)
-    m.pipes_length_km = Param(m.PIPELINES, within=NonNegativeReals)
+    m.TRANSPORT_PROJECTS = Set()
+    m.TRANSPORT_ROUTES = Set()
+    m.pipes_hn1 = Param(m.TRANSPORT_ROUTES, within=m.LOAD_ZONES)
+    m.pipes_hn2 = Param(m.TRANSPORT_ROUTES, within=m.LOAD_ZONES)
+    m.pipes_length_km = Param(m.TRANSPORT_ROUTES, within=NonNegativeReals)
     m.pipes_efficiency = Param(
-        m.PIPELINES,
+        m.TRANSPORT_PROJECTS,
         within=PercentFraction)
     m.existing_pipes_cap = Param(
-        m.PIPELINES,
+        m.TRANSPORT_ROUTES,
         within=NonNegativeReals)
+
     m.blend_limit = Param(
-        m.PIPELINES,
+        m.TRANSPORT_PROJECTS,
         within=PercentFraction
     )
+    m.is_pre_existing = Param(
+        m.TRANSPORT_PROJECTS,
+        within=Boolean
+    )
+
     m.pipes_new_build_allowed = Param(
-        m.PIPELINES, within=Boolean, default=True)
+        m.TRANSPORT_ROUTES, within=Boolean, default=True)
     m.PIPELINES_BLD_YRS = Set(
+        dimen=3,
+        initialize=m.TRANSPORT_ROUTES * m.TRANSPORT_PROJECTS * m.PERIODS,
+        filter=lambda m, r, p, period: m.pipes_new_build_allowed[r])
+    m.PROJECT_YRS = Set(
         dimen=2,
-        initialize=m.PIPELINES * m.PERIODS,
-        filter=lambda m, ptx, p: m.pipes_new_build_allowed[ptx])
+        initialize=m.TRANSPORT_PROJECTS * m.PERIODS)
     m.BuildPtx = Var(m.PIPELINES_BLD_YRS, within=NonNegativeReals)
     m.pipes_terrain_multiplier = Param(
-        m.PIPELINES,
+        m.TRANSPORT_ROUTES,
         within=NonNegativeReals,
         default=1)
     m.pipes_capital_cost_per_kg_km = Param(
+        m.TRANSPORT_PROJECTS,
         within=NonNegativeReals,
         default=1000)
     m.pipes_lifetime_yrs = Param(
+        m.TRANSPORT_PROJECTS,
         within=NonNegativeReals,
         default=20)
     m.pipes_fixed_om_fraction = Param(
+        m.TRANSPORT_PROJECTS,
         within=NonNegativeReals,
         default=0.03)
     m.pipes_cost_annual = Param(
-        m.PIPELINES,
+        m.TRANSPORT_ROUTES, m.TRANSPORT_PROJECTS,
         within=NonNegativeReals,
-        initialize=lambda m, ptx: (
-            m.pipes_capital_cost_per_kg_km * m.pipes_terrain_multiplier[ptx] *
-            m.pipes_length_km[ptx] * (crf(m.interest_rate, m.pipes_lifetime_yrs) +
-            m.pipes_fixed_om_fraction)))
-    m.PtxCapacityNameplate = Expression(
-        m.PIPELINES, m.PERIODS,
-        rule=lambda m, ptx, period: sum(
-            m.BuildPtx[ptx, bld_yr]
+        initialize=lambda m, r, p: (
+            m.pipes_capital_cost_per_kg_km[p] * m.pipes_terrain_multiplier[r] *
+            m.pipes_length_km[r] * (crf(m.interest_rate, m.pipes_lifetime_yrs[p]) +
+            m.pipes_fixed_om_fraction[p])))
+
+    def PtxCapacityNameplate_rule(m, r, p, period):
+
+        cap = sum(m.BuildPtx[r, p, bld_yr]
             for bld_yr in m.PERIODS
-            if bld_yr <= period and (ptx, bld_yr) in m.PIPELINES_BLD_YRS
-        ) + m.existing_pipes_cap[ptx])
+            if bld_yr <= period and (r, p, bld_yr) in m.PIPELINES_BLD_YRS)
+
+        if m.is_pre_existing[p]:
+            cap += m.existing_pipes_cap[r]
+
+        return cap
+
+    m.PtxCapacityNameplate = Expression(
+        m.PIPELINES_BLD_YRS,
+        rule=PtxCapacityNameplate_rule)
+
     m.pipes_derating_factor = Param(
-        m.TRANSMISSION_LINES,
+        m.TRANSPORT_ROUTES,
         within=PercentFraction,
         default=1)
+
     m.PtxCapacityNameplateAvailableForH2 = Expression(
-        m.PIPELINES, m.PERIODS,
-        rule=lambda m, ptx, period: (
-            m.PtxCapacityNameplate[ptx, period])*m.blend_limit[ptx])# * m.pipes_derating_factor[ptx]))
+        m.PIPELINES_BLD_YRS,
+        rule=lambda m, r, p, period:
+            m.PtxCapacityNameplate[r, p, period] * m.blend_limit[p]
+        )
 
     def init_DIRECTIONAL_PTX(m):
         ptx_dir = set()
-        for ptx in m.PIPELINES:
+        for ptx in m.TRANSPORT_ROUTES:
             ptx_dir.add((m.pipes_hn1[ptx], m.pipes_hn2[ptx]))
             ptx_dir.add((m.pipes_hn2[ptx], m.pipes_hn1[ptx]))
         return ptx_dir
@@ -526,88 +526,143 @@ def define_components(m):
             h for h in m.LOAD_ZONES if (h,hn) in m.DIRECTIONAL_PTX))
 
     def init_pipes_d_line(m, node_from, node_to):
-        for ptx in m.PIPELINES:
+        for ptx in m.TRANSPORT_ROUTES:
             if((m.pipes_hn1[ptx] == node_from and m.pipes_hn2[ptx] == node_to) or
                (m.pipes_hn2[ptx] == node_from and m.pipes_hn1[ptx] == node_to)):
                 return ptx
     m.pipes_d_line = Param(
         m.DIRECTIONAL_PTX,
-        within=m.PIPELINES,
+        within=m.TRANSPORT_ROUTES,
         initialize=init_pipes_d_line)
 
     m.PIPES_TIMEPOINTS = Set(
-        dimen=3,
-        initialize=lambda m: m.DIRECTIONAL_PTX * m.TIMEPOINTS
+        dimen=4,
+        initialize=lambda m: m.DIRECTIONAL_PTX * m.TRANSPORT_PROJECTS * m.TIMEPOINTS
     )
     m.DispatchPtx = Var(m.PIPES_TIMEPOINTS, within=NonNegativeReals)
 
     m.Maximum_DispatchPtx = Constraint(
         m.PIPES_TIMEPOINTS,
-        rule=lambda m, node_from, node_to, tp: (
-            m.DispatchPtx[node_from, node_to, tp] <=
-            m.PtxCapacityNameplateAvailableForH2[m.pipes_d_line[node_from, node_to],
+        rule=lambda m, node_from, node_to, p, tp: (
+            m.DispatchPtx[node_from, node_to, p, tp] <=
+            m.PtxCapacityNameplateAvailableForH2[m.pipes_d_line[node_from, node_to], p,
                                      m.tp_period[tp]]))
 
     m.PtxHydrogenSent = Expression(
         m.PIPES_TIMEPOINTS,
-        rule=lambda m, node_from, node_to, tp: (
-            m.DispatchPtx[node_from, node_to, tp]))
+        rule=lambda m, node_from, node_to, p, tp: (
+            m.DispatchPtx[node_from, node_to, p, tp]))
+
     m.PtxHydrogenReceived = Expression(
         m.PIPES_TIMEPOINTS,
-        rule=lambda m, node_from, node_to, tp: (
-            m.DispatchPtx[node_from, node_to, tp] *
-            m.pipes_efficiency[m.pipes_d_line[node_from, node_to]]))
+        rule=lambda m, node_from, node_to, p, tp: (
+            m.DispatchPtx[node_from, node_to, p, tp] *
+            m.pipes_efficiency[p]))
+            #m.PtxEffectiveEfficiency[m.pipes_d_line[node_from, node_to], m.tp_period[tp]]))
+            #0.98))
 
     def PTXPowerNet_calculation(m, h, tp):
-        return (
-            sum(m.PtxHydrogenReceived[node_from, h, tp]
-                for node_from in m.PTX_CONNECTIONS_TO_NODE[h]) -
-            sum(m.PtxHydrogenSent[h, node_to, tp]
-                for node_to in m.PTX_CONNECTIONS_TO_NODE[h]))
+        return (sum(
+                    sum(m.PtxHydrogenReceived[node_from, h, p, tp]
+                        for node_from in m.PTX_CONNECTIONS_TO_NODE[h]) -
+                    sum(m.PtxHydrogenSent[h, node_to, p, tp]
+                        for node_to in m.PTX_CONNECTIONS_TO_NODE[h])
+                for p in m.TRANSPORT_PROJECTS))
+
     m.PTXPowerNet = Expression(
         m.LOAD_ZONES, m.TIMEPOINTS,
         rule=PTXPowerNet_calculation)
 
-    #m.testReceived = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m,h,tp: sum(m.PtxHydrogenReceived[node_from, h, tp]
-    #    for node_from in m.PTX_CONNECTIONS_TO_NODE[h]))
-    #m.testSent = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m,h,tp: sum(m.PtxHydrogenSent[h, node_to, tp]
-    #    for node_to in m.PTX_CONNECTIONS_TO_NODE[h]))
-
     # Register net transmission as contributing to zonal energy balance
     m.Hydrogen_Injections.append('PTXPowerNet')
 
-    #m.Hydrogen_Injections.append('testReceived')
-    #m.Hydrogen_Withdrawals.append('testSent')
+    m.PtxFixedCosts = Expression(
+        m.PERIODS,
+        rule=lambda m, period: sum(
+            m.PtxCapacityNameplate[r, p, period] * m.pipes_cost_annual[r, p]
+            for (r, p, per) in m.PIPELINES_BLD_YRS if per==period
+        )
+    )
+    m.Cost_Components_Per_Period.append('PtxFixedCosts')
+
+    """
+    # compressor details
+    """
+    m.hydrogen_compressor_capital_cost_per_kg_per_hour = Param(m.PERIODS)
+    m.hydrogen_compressor_fixed_cost_per_kg_hour_year = Param(m.PERIODS, default=0.0)
+    m.hydrogen_compressor_variable_cost_per_kg = Param(m.PERIODS, default=0.0)
+    m.hydrogen_compressor_mwh_per_kg = Param()
+    m.hydrogen_compressor_life_years = Param()
+
+    m.BuildCompressorKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)  # capacity to build, measured in kg/hour of throughput
+    m.CompressorCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
+        sum(m.BuildCompressorKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
+        if ((p - p_) < m.hydrogen_compressor_life_years)))
+
+    #Can expand these two equations to account for the compression used for other technologies like pipelines
+    m.Max_Dispatch_Compressor = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
+        sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS) <= m.CompressorCapacityKgPerHour[z, m.tp_period[t]])
+
+    m.CompressHydrogenMW = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
+        sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS) * m.hydrogen_compressor_mwh_per_kg
+    )
+    m.Zone_Power_Withdrawals.append('CompressHydrogenMW')
 
     # An expression to summarize annual costs for the objective
     # function. Units should be total annual future costs in $base_year
     # real dollars. The objective function will convert these to
     # base_year Net Present Value in $base_year real dollars.
-    m.PtxFixedCosts = Expression(
-        m.PERIODS,
-        rule=lambda m, p: sum(
-            m.PtxCapacityNameplate[ptx, p] * m.pipes_cost_annual[ptx]
-            for ptx in m.PIPELINES
+
+    """
+    Cost calculations for hydrogen infrastructure (not pipelines)
+    """
+    m.HydrogenVariableCost = Expression(m.TIMEPOINTS, rule=lambda m, t:
+        sum(
+            m.DispatchElectrolyzerKgPerHour[z, t] * m.hydrogen_electrolyzer_variable_cost_per_kg[m.tp_period[t]]
+            + m.DispatchSMRWithCCSKgPerHour[z, t] * m.hydrogen_smr_with_ccs_variable_cost_per_kg[m.tp_period[t]]
+            + m.DispatchSMRNoCCSKgPerHour[z, t] * m.hydrogen_smr_no_ccs_variable_cost_per_kg[m.tp_period[t]]
+            + m.SMRFuelUseRate[z, t] * m.fuel_cost[z, m.hydrogen_smr_with_ccs_fuel_source, m.tp_period[t]]
+            + sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS) * m.hydrogen_compressor_variable_cost_per_kg[m.tp_period[t]]
+            + m.DispatchFuelCellMW[z, t] * m.hydrogen_fuel_cell_variable_cost_per_mwh[m.tp_period[t]]
+            for z in m.LOAD_ZONES
         )
     )
-    m.Cost_Components_Per_Period.append('PtxFixedCosts')
+    m.HydrogenFixedCostAnnual = Expression(m.PERIODS, rule=lambda m, p:
+        sum(
+            m.ElectrolyzerCapacityKgPerHour[z, p] * (
+                m.hydrogen_electrolyzer_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_electrolyzer_life_years)
+                + m.hydrogen_electrolyzer_fixed_cost_per_kgh_year[p]) #* m.hydrogen_electrolyzer_kg_per_mwh #Why did I have this multiplier here?
+            + m.SMRWithCCSCapacityKgPerHour[z, p] * (
+                m.hydrogen_smr_with_ccs_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_smr_with_ccs_life_years)
+                + m.hydrogen_smr_with_ccs_fixed_cost_per_kgh_year[p])
+            + m.SMRNoCCSCapacityKgPerHour[z, p] * (
+                m.hydrogen_smr_no_ccs_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_smr_no_ccs_life_years)
+                + m.hydrogen_smr_no_ccs_fixed_cost_per_kgh_year[p])
+            + m.CompressorCapacityKgPerHour[z, p] * (
+                m.hydrogen_compressor_capital_cost_per_kg_per_hour[p] * crf(m.interest_rate, m.hydrogen_compressor_life_years)
+                + m.hydrogen_compressor_fixed_cost_per_kg_hour_year[p])
+            + sum(m.H2StorageCapacityKg[s, z, p] * (
+                m.h2_storage_capital_cost_per_kg[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s]))
+            + m.H2StorageCapacityKgPerHour[s, z, p] * (
+                m.h2_storage_capital_cost_per_kg_per_hour[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s])) for s in m.H2_STORAGE_PROJECTS)
+            #+ m.H2StorageCapacityKg[z, p] * (
+            #    m.h2_storage_capital_cost_per_kg[p] * crf(m.interest_rate, m.h2_storage_life_years))
+            #+ m.H2StorageCapacityKgPerHour[z, p] * (
+            #    m.h2_storage_capital_cost_per_kg_per_hour[p] * crf(m.interest_rate, m.h2_storage_life_years))
+            + m.FuelCellCapacityMW[z, p] * (
+                m.hydrogen_fuel_cell_capital_cost_per_mw[p] * crf(m.interest_rate, m.hydrogen_fuel_cell_life_years)
+                + m.hydrogen_fuel_cell_fixed_cost_per_mw_year[p])
+            for z in m.LOAD_ZONES
+        )
+    )
+    m.Cost_Components_Per_TP.append('HydrogenVariableCost')
+    m.Cost_Components_Per_Period.append('HydrogenFixedCostAnnual')
 
 
 def load_inputs(m, switch_data, inputs_dir):
 
     """
     Need input files for: Hydrogen load zones, hydrogen time points, hydrogen projects (gen and storage), pipeline transport
-
-    LOAD_ZONES.csv: LOAD_ZONES hydrogen_dbid existing_local_td coupled_load_zones, transmission stuff,
-    need to add a column to load zone indicating what hydrogen node they are coupled to i think
-    hydrogen_load.csv
-
-    have to add a column to load_zones.csv to indicate the hydrogen node they are coupled to
-
-    Do we need to define individual projects like generation_projects_info, or can we just provide general information and let the model decide how much to build?
-        I think the latter but could be worth a broader discussion with Sergio
-        Based on what Jeff Reeds was saying, electrolyzers (and presumably fuel cells?) are very compact and modular, so maybe it makes more sense to get the model flexibility
-        in deciding how much is built instead of working off of projects.
 
     Do we want a local_td equivalent for hydrogen pipelines? Might be nice to include some representation of the distribution level of pipelines, even if it is simple
 
@@ -629,8 +684,8 @@ def load_inputs(m, switch_data, inputs_dir):
             m.hydrogen_compressor_capital_cost_per_kg_per_hour,
             m.hydrogen_compressor_fixed_cost_per_kg_hour_year,
             m.hydrogen_compressor_variable_cost_per_kg,
-            m.hydrogen_tank_capital_cost_per_kg,
-            m.hydrogen_tank_capital_cost_per_kg_per_hour,
+            m.h2_storage_capital_cost_per_kg,
+            m.h2_storage_capital_cost_per_kg_per_hour,
             m.hydrogen_smr_with_ccs_capital_cost_per_kgh,
             m.hydrogen_smr_with_ccs_fixed_cost_per_kgh_year,
             m.hydrogen_smr_with_ccs_variable_cost_per_kg,
@@ -658,8 +713,6 @@ def load_inputs(m, switch_data, inputs_dir):
             m.hydrogen_fuel_cell_mwh_per_kg,
             m.hydrogen_compressor_life_years,
             m.hydrogen_compressor_mwh_per_kg,
-            m.hydrogen_tank_life_years,
-            m.hydrogen_tank_minimum_size_kg,
             m.hydrogen_smr_with_ccs_kg_per_mmbtu,
             m.hydrogen_smr_with_ccs_life_years,
             m.hydrogen_smr_with_ccs_fuel_source,
@@ -668,6 +721,26 @@ def load_inputs(m, switch_data, inputs_dir):
             m.hydrogen_smr_no_ccs_life_years,
             m.hydrogen_smr_no_ccs_fuel_source,
             m.hydrogen_smr_no_ccs_co2_per_h2
+        )
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, 'hydrogen_storage_costs.csv'),
+        optional=False,
+        auto_select=True, index=m.H2_STORAGE_BUILD_YRS,
+        param=(
+            m.h2_storage_capital_cost_per_kg,
+            m.h2_storage_capital_cost_per_kg_per_hour,
+            m.h2_storage_fixed_om_per_kg,
+            m.h2_storage_fixed_om_per_kg_per_hour
+        )
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, 'hydrogen_storage_params.csv'),
+        optional=False,
+        auto_select=True, index=m.H2_STORAGE_PROJECTS,
+        param=(
+            m.h2_storage_life_years,
+            m.h2_storage_minimum_size_kg
         )
     )
     #switch_data.load_aug(
@@ -700,22 +773,23 @@ def load_inputs(m, switch_data, inputs_dir):
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'pipelines.csv'),
         auto_select=True,
-        index=m.PIPELINES,
+        index=m.TRANSPORT_ROUTES,
         optional_params=(
             'pipes_dbid', 'pipes_derating_factor',
             'pipes_terrain_multiplier', 'pipes_new_build_allowed'
         ),
         param=(
             m.pipes_hn1, m.pipes_hn2,
-            m.pipes_length_km, m.pipes_efficiency, m.existing_pipes_cap, m.blend_limit,
+            m.pipes_length_km, m.existing_pipes_cap
         )
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'pipes_params.csv'),
         optional=True, auto_select=True,
+        index=m.TRANSPORT_PROJECTS,
         param=(
             m.pipes_capital_cost_per_kg_km, m.pipes_lifetime_yrs,
-            m.pipes_fixed_om_fraction
+            m.pipes_fixed_om_fraction, m.blend_limit, m.pipes_efficiency, m.is_pre_existing
         )
     )
 
@@ -737,16 +811,34 @@ def post_solve(instance, outdir):
     #    values=lambda m, tp: (
     #        tp, m.tp_ts[tp]
     #    ))
+    reporting.write_table(
+        instance, instance.H2_STORAGE_PROJECTS*instance.LOAD_ZONES*instance.PERIODS,
+        output_file=os.path.join(outdir, "hydrogen_storage_build.csv"),
+        headings=("H2_STORAGE_PROJECTS","Load Zone", "period", "BuildH2StorageKg", "BuildH2StorageKgPower",
+         "H2StorageCapacityKg", "H2StorageCapacityKgPerHour"),
+        values=lambda m, s, z, p: (
+            s, z, p, m.BuildH2StorageKg[s, z, p], m.BuildH2StorageKgPower[s, z, p],
+            m.H2StorageCapacityKg[s, z, p], m.H2StorageCapacityKgPerHour[s, z, p]
+            ))
+    reporting.write_table(
+        instance, instance.H2_STORAGE_PROJECTS*instance.LOAD_ZONES*instance.TIMEPOINTS,
+        output_file=os.path.join(outdir, "hydrogen_storage_dispatch.csv"),
+        headings=("H2_STORAGE_PROJECTS","Load Zone", "timepoint", "StoreHydrogenKgPerHour", "WithdrawHydrogenKgPerHour",
+         "HydrogenStorageStateKg", "HydrogenNetStorageKg"),
+        values=lambda m, s, z, tp: (
+            s, z, tp, m.StoreHydrogenKgPerHour[s, z, tp], m.WithdrawHydrogenKgPerHour[s, z, tp],
+            m.HydrogenStorageStateKg[s, z, tp], m.HydrogenNetStorageKg[s, z, tp]
+            ))
 
     reporting.write_table(
         instance, instance.LOAD_ZONES*instance.PERIODS,
         output_file=os.path.join(outdir, "hydrogen_build.csv"),
         headings=("Load Zone", "period", "BuildElectrolyzerKgPerHour", "BuildSMRWithCCSKgPerHour",
-         "BuildSMRNoCCSKgPerHour", "BuildFuelCellMW", "BuildHydrogenTankKg", "BuildHydrogenTankKgPerHour",
+         "BuildSMRNoCCSKgPerHour", "BuildFuelCellMW",
          "SMRWithCCSCapacityKgPerHour", "SMRNoCCSCapacityKgPerHour"),
         values=lambda m, z, p: (
             z, p, m.BuildElectrolyzerKgPerHour[z, p], m.BuildSMRWithCCSKgPerHour[z,p],
-             m.BuildSMRNoCCSKgPerHour[z,p], m.BuildFuelCellMW[z, p], m.BuildHydrogenTankKg[z, p], m.HydrogenTankStorageRate[z, p],
+             m.BuildSMRNoCCSKgPerHour[z,p], m.BuildFuelCellMW[z, p],
              m.SMRWithCCSCapacityKgPerHour[z, p], m.SMRNoCCSCapacityKgPerHour[z, p]
             ))
 
@@ -754,11 +846,11 @@ def post_solve(instance, outdir):
         instance, instance.LOAD_ZONES*instance.PERIODS,
         output_file=os.path.join(outdir, "hydrogen_capacities.csv"),
         headings=("Load Zone", "period", "SMRWithCCSCapacityKgPerHour", "SMRNoCCSCapacityKgPerHour",
-        "ElectrolyzerCapacityKgPerHour", "HydrogenTankCapacityKg", "HydrogenTankStorageRate",
+        "ElectrolyzerCapacityKgPerHour",
         "FuelCellCapacityMW"),
         values=lambda m, z, p: (
             z, p, m.SMRWithCCSCapacityKgPerHour[z, p], m.SMRNoCCSCapacityKgPerHour[z, p],
-            m.ElectrolyzerCapacityKgPerHour[z, p], m.HydrogenTankCapacityKg[z, p], m.HydrogenTankStorageRate[z, p],
+            m.ElectrolyzerCapacityKgPerHour[z, p],
             m.FuelCellCapacityMW[z, p]
             ))
 
@@ -773,12 +865,20 @@ def post_solve(instance, outdir):
     reporting.write_table(
         instance, instance.HNODE_TPS,
         output_file=os.path.join(outdir, "hydrogen_dispatch.csv"),
-        headings=("Load Zone", "timepoint", "StoreHydrogenKgPerHour", "WithdrawHydrogenKgPerHour",
+        headings=("Load Zone", "timepoint",
         "DispatchElectrolyzerKgPerHour", "DispatchSMRWithCCSKgPerHour", "DispatchSMRNoCCSKgPerHour", "ConsumeElecMW",
-        "ConsumeHydrogenKgPerHour","DispatchFuelCellMW", "HydrogenNetStorageKg", "HydrogenStorageStateKg", "NetTransmission"),
+        "ConsumeHydrogenKgPerHour","DispatchFuelCellMW", "NetTransmission"),
         values=lambda m, z, t: (
-            z, m.tp_timestamp[t], m.StoreHydrogenKgPerHour[z, t], m.WithdrawHydrogenKgPerHour[z, t],
+            z, m.tp_timestamp[t],
              m.DispatchElectrolyzerKgPerHour[z, t], m.DispatchSMRWithCCSKgPerHour[z,t], m.DispatchSMRNoCCSKgPerHour[z,t],
              m.ConsumeElecMW[z,t], m.ConsumeHydrogenKgPerHour[z,t], m.DispatchFuelCellMW[z, t],
-             m.HydrogenNetStorageKg[z,t], m.HydrogenStorageStateKg[z,t], m.PTXPowerNet[z,t]
+             m.PTXPowerNet[z,t]
+            ))
+
+    reporting.write_table(
+        instance, instance.PIPELINES_BLD_YRS,
+        output_file=os.path.join(outdir, "PtxNameplateCapacity.csv"),
+        headings=("period", "PtxNameplateCapacity", "PtxNameplateCapacityForH2"),
+        values=lambda m, r, p, period: (
+            r, p, period, m.PtxCapacityNameplate[r, p, period], m.PtxCapacityNameplateAvailableForH2[r, p, period]
             ))
