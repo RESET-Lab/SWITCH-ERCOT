@@ -5,32 +5,28 @@ import os
 from pyomo.environ import *
 
 # from .util import get
-
+from switch_model.financials import capital_recovery_factor as crf
 
 def define_components(m):
     """
-    Incorporate the effect of the production tax credit
+    Incorporate the effect of the production tax credit and investment tax credit
     """
     m.credit_years = Set(
-        #input_file="ptc_values.csv",
-        dimen=2#,
-        #input_optional=True,
+        dimen=2
     )
-    m.ptc_inputs = Param(
+    m.ptc_value = Param(
+        m.credit_years,
+        default=0,
+        domain=NonNegativeReals#,
+        #doc="Production Tax Credit (PTC) for given technology by period. Data in $/MWh",
+    )
+    m.itc_value = Param(
         m.credit_years,
         #input_file="ptc_values.csv",
         #input_column="ptc_value",
         default=0,
         domain=NonNegativeReals#,
-        #doc="Production Tax Credit (PTC) for given technology by period. Data in $/MWh",
-    )
-    m.itc_inputs = Param(
-        m.credit_years,
-        #input_file="ptc_values.csv",
-        #input_column="ptc_value",
-        default=0,
-        domain=NonNegativeReals#,
-        #doc="Production Tax Credit (PTC) for given technology by period. Data in $/MWh",
+        #doc="Investment Tax Credit (ITC) for given technology by period. Data in $/MW",
     )
 
     # Create a set that has build capacity constrained by year (both caps of the PTC).
@@ -76,7 +72,7 @@ def define_components(m):
     m.PTC_per_tp = Expression(
         m.TIMEPOINTS,
         rule=lambda m, t: sum(
-            -m.PTC[g, t] * m.ptc_inputs[m.tp_period[t], m.gen_tech[g]]
+            -m.PTC[g, t] * m.ptc_value[m.tp_period[t], m.gen_tech[g]]
             for g in m.GENS_IN_PERIOD[m.tp_period[t]]
             if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
             and m.tp_period[t] < 2040
@@ -88,10 +84,10 @@ def define_components(m):
     m.ITC_per_period = Expression(
         m.PERIODS,
         rule = lambda m, p: sum(
-            -m.itc_inputs[p, m.gen_tech[g]] * m.GenCapitalCosts[g,p]
-            for (g, p) in m.NEW_GEN_BLD_YRS #m.GENS_IN_PERIOD[p]
+            -m.itc_value[p, m.gen_tech[g]] * m.gen_overnight_cost[g, p] *
+            crf(m.interest_rate, m.gen_max_age[g]) * m.BuildGen[g, p] #m.GenCapitalCosts[g,p]
+            for (g, p) in m.NEW_GEN_BLD_YRS
             if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
-            #and g not in 
             and p < 2040
         )
     )
@@ -104,14 +100,7 @@ def load_inputs(mod, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, 'tax_credits.csv'),
         autoselect=True,
         index=mod.credit_years,
-        param=(mod.ptc_inputs, mod.itc_inputs))
-    
-
-    #switch_data.load_aug(
-    #    filename=os.path.join(inputs_dir, 'ptc_projects.csv'),
-    #    autoselect=True,
-    #    index=mod.GENERATION_PROJECTS,
-    #    param=(mod.ptc_eligible))
+        param=(mod.ptc_value, mod.itc_value))
 
 # Exported files:
 #         PTC.csv - Total ptc value aggregated per period
