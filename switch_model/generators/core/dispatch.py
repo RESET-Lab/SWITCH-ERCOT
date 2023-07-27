@@ -301,6 +301,8 @@ def define_components(mod):
             if m.tp_period[t] == period),
         doc="The system's annual emissions, in metric tonnes of CO2 per year.")
 
+    mod.System_Emissions.append('AnnualEmissions')
+
     mod.GenVariableOMCostsInTP = Expression(
         mod.TIMEPOINTS,
         rule=lambda m, t: sum(

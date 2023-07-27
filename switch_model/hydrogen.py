@@ -28,7 +28,7 @@ TO-DO:
             - How should we be defining pipeline efficiency? It's not like it gets dissipated. Define in terms of pressure drop? Why does that matter though?
     - STORAGE:
         - THE BUG IS STILL HAPPENING
-            - Temporary fix: Set the start and end of the period to have zero storage. No there is no storage happening anywhere
+            - Temporary fix: Set the start and end of the period to have zero storage. No there is no storage happening anywhere -> 2023 update: Go see if this is fixed
         - Possibly change period mass balance to allow period to end with more storage than it started?
             - If I were to do this I would then also have to apply the current TS storage constraint to the TS at the start of the period as well
         - Is 100% efficiency for storage reasonable?
@@ -77,6 +77,7 @@ TO-DO:
     - Load profile for hydrogen (transportation?)
         - Would make sense to include industry demand for hydrogen, since that is what most hydrogen is being used for in Texas currently
     - Account for geologic storage
+    - Should I split these things into different modules? I think eventually that would be wise but for now we can consolidate
 
 """
 
@@ -259,10 +260,17 @@ def define_components(m):
             if m.tp_period[t] == period),
         doc="The system's annual emissions from hydrogen production, in metric tonnes of CO2 per year.")
 
+    m.System_Emissions.append('H2AnnualEmissions')
+
     m.hydrogen_emission_cap = Param(m.PERIODS, within = NonNegativeReals, default = float('inf'))
     m.Enforce_H2_Carbon_Cap = Constraint(m.PERIODS, rule=lambda m, p:
         Constraint.Skip if m.hydrogen_emission_cap[p] == float('inf')
         else (m.H2AnnualEmissions[p]) <= m.hydrogen_emission_cap[p])
+    m.H2EmissionsCosts = Expression(m.PERIODS,
+    rule=lambda m, p: 
+        (m.H2AnnualEmissions[p])* m.carbon_cost_dollar_per_tco2[p],
+    doc=("Enforces the carbon cap for generation-related emissions."))
+    m.Cost_Components_Per_Period.append('H2EmissionsCosts')
 
     """
     # storage tank details
@@ -315,6 +323,31 @@ def define_components(m):
     #m.HydrogenNetStorageLimit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
     #    m.HydrogenNetStorageKg[z, tp] <= m.H2StorageCapacityKgPerHour[z, m.tp_period[tp]])
 
+    """
+    Hydrogen pipeline line packing pseudocode
+
+    1. Define new storage projects called pipeline
+    2. Add optional input called IS_TX or IS_PIPELINE. Will default to False, but set to true for this project
+    3. Set the cost of this storage project to 0, since the development of this project is already covered in transmission costs (unless there are other costs to consider?)
+    4. Within the module, constrain the m.BuildH2StorageKg variable for all storage projects where IS_TX = True
+    5. If true, force m.BuildH2StorageKg to be equal to half of the total pipeline capacity connected to this load zone, scaled based on allowable pressures and things like that
+        a. Assuming 50-50 split between each load zone seems fine to me
+    
+    m.IS_TX = Param(m.H2_STORAGE_BUILD_YRS, default=False, within=boolean)
+
+    m.LINEPACKING_YRS = Set(initialize = m.H2_STORAGE_BUILD_YRS_ZONES,
+                            filter = lambda m,g,z,p : m.IS_TX[g,p])
+    
+    m.LinePackingCapacity = Expression(m.LINEPACKING_YRS, rule = lambda m,g,z,p:
+        sum(m.PtxCapacityNameplateAvailableForH2[r, pr, p])*0.5 
+        for (r, pr, per) in m.PIPELINES_BLD_YRS 
+        if (m.pipes_hn1[r]==z) or (m.pipes_hn2[r]==z)
+    )
+
+    m.LinePackingConstraint = Constraint(m.LINEPACKING_YRS, rule=lambda m,g,z,p:
+        m.H2StorageCapacityKg[g,z,p] <= m.LinepackingCapacity[g,z,p])
+
+    """
     #Constraint to track storage state, but it breaks for periods with a single timepoint, so I added in something to account for that
     #That likely won't ever come up for real test cases, but it should be included so I can keep testing on the 3_zone_toy
     m.ts_previous = Param(
@@ -491,6 +524,8 @@ def define_components(m):
             for bld_yr in m.PERIODS
             if bld_yr <= period and (r, p, bld_yr) in m.PIPELINES_BLD_YRS)
 
+        # Returning to this code 2 years later, is this double counting pre-existing builds??
+        # No I don't think so since the pre existing capacity would not be counted in the BuildPtx variable
         if m.is_pre_existing[p]:
             cap += m.existing_pipes_cap[r]
 
@@ -658,6 +693,92 @@ def define_components(m):
     m.Cost_Components_Per_TP.append('HydrogenVariableCost')
     m.Cost_Components_Per_Period.append('HydrogenFixedCostAnnual')
 
+    """
+    # Need to figure out to mesh this code with how I have define the different generation options above. Maybe I should generalize the code?
+
+    # Incorporate the effect of the production tax credit and investment tax credit for hydrogen_projects
+    
+    m.h2_credit_years = Set(
+        dimen=2
+    )
+    m.h2_ptc_value = Param(
+        m.h2_credit_years,
+        default=0,
+        domain=NonNegativeReals#,
+        #doc="Production Tax Credit (PTC) for given technology by period. Data in $/MWh",
+    )
+    m.h2_itc_value = Param(
+        m.h2_credit_years,
+        #input_file="ptc_values.csv",
+        #input_column="ptc_value",
+        default=0,
+        domain=NonNegativeReals#,
+        #doc="Investment Tax Credit (ITC) for given technology by period. Data in $/MW",
+    )
+
+    # Create a set that has build capacity constrained by year (both caps of the PTC).
+    # The two caps of the PTC are that the generator must be built prior to 2035 in
+    # order to recieve credit, and that all generators will no longer recieve the PTC
+    # starting in 2040.
+    m.h2_ptc_eligible_yrs = Set(
+        m.GENERATION_PROJECTS,
+        m.PERIODS,
+        ordered=False,
+        initialize=lambda m, g, period: set(
+            bld_yr
+            for bld_yr in m.BLD_YRS_FOR_GEN_PERIOD[g, period]
+            if 2025 <= bld_yr < 2035 and period < 2040 #projects built in 2030 would be able to receive the credit in 2040, I think? Check this later
+        ),
+    )
+    # Calculate the total eligible PTC capacity per period
+    m.PTC_Capacity = Expression(
+        m.GENERATION_PROJECTS,
+        m.PERIODS,
+        rule=lambda m, g, period: sum(
+            m.BuildGen[g, bld_yr] for bld_yr in m.ptc_eligible_yrs[g, period]
+        ),
+    )
+
+    # Same as PTC_Capacity but per timepoint
+    m.PTC_CapacityInTP = Expression(
+        m.GEN_TPS, rule=lambda m, g, t: m.PTC_Capacity[g, m.tp_period[t]]
+    )
+
+    # Create PTC variable that will either return the PTC Capacity or the DispatchGen
+    # whichever is minimum.
+    m.PTC = Var(m.GEN_TPS, domain=NonNegativeReals)
+
+    m.PTC_lower_bound = Constraint(
+        m.GEN_TPS, rule=lambda m, g, t: m.PTC[g, t] <= m.PTC_CapacityInTP[g, t]
+    )
+    m.PTC_upper_bound = Constraint(
+        m.GEN_TPS, rule=lambda m, g, t: m.PTC[g, t] <= m.DispatchGen[g, t]
+    )
+
+    # Calculate PTC
+    m.PTC_per_tp = Expression(
+        m.TIMEPOINTS,
+        rule=lambda m, t: sum(
+            -m.PTC[g, t] * m.ptc_value[m.tp_period[t], m.gen_tech[g]]
+            for g in m.GENS_IN_PERIOD[m.tp_period[t]]
+            if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
+            and m.tp_period[t] < 2040
+        ),
+    )
+    m.Cost_Components_Per_TP.append("PTC_per_tp")
+
+    # Calculate ITC
+    m.ITC_per_period = Expression(
+        m.PERIODS,
+        rule = lambda m, p: sum(
+            -m.itc_value[p, m.gen_tech[g]] * m.GenCapitalCosts[g,p]
+            for (g, p) in m.NEW_GEN_BLD_YRS
+            if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
+            and p < 2040
+        )
+    )
+    m.Cost_Components_Per_Period.append('ITC_per_period')
+    """
 
 def load_inputs(m, switch_data, inputs_dir):
 

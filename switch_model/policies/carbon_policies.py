@@ -23,29 +23,47 @@ from pyomo.environ import Set, Param, Expression, Constraint, Suffix
 import switch_model.reporting as reporting
 
 # Need to sort out the flags and possible workaround to make the H2 emissions optional so I dont need to keep commenting things out
+def define_dynamic_lists(model):
+    """
+    Creating a new dynamic list for the carbon emission calculations that way new modules that introduce other sources of emissions
+    (like hydrogen) can be included in the carbon policy constraints.
+
+    Anything added to this list must be indexed by period!
+    """
+    model.System_Emissions = []
+
 
 def define_components(model):
     model.carbon_cap_tco2_per_yr = Param(model.PERIODS, default=float('inf'), doc=(
         "Emissions from this model must be less than this cap. "
         "This is specified in metric tonnes of CO2 per year."))
-    model.Enforce_Carbon_Cap = Constraint(model.PERIODS,
-        rule=lambda m, p:
-            Constraint.Skip if m.carbon_cap_tco2_per_yr[p] == float('inf')
-            #else (m.AnnualEmissions[p]+m.H2AnnualEmissions[p]) <= m.carbon_cap_tco2_per_yr[p],
-            else (m.AnnualEmissions[p]) <= m.carbon_cap_tco2_per_yr[p],
-        doc=("Enforces the carbon cap for generation-related emissions."))
+
     # Make sure the model has a dual suffix for determining implicit carbon costs
     if not hasattr(model, "dual"):
         model.dual = Suffix(direction=Suffix.IMPORT)
 
     model.carbon_cost_dollar_per_tco2 = Param(model.PERIODS, default=0.0,
         doc="The cost adder applied to emissions, in future dollars per metric tonne of CO2.")
+
     model.EmissionsCosts = Expression(model.PERIODS,
-        rule=lambda model, period: \
-            #(model.AnnualEmissions[period] + model.H2AnnualEmissions[period])* model.carbon_cost_dollar_per_tco2[period],
-            (model.AnnualEmissions[period])* model.carbon_cost_dollar_per_tco2[period],
-        doc=("Enforces the carbon cap for generation-related emissions."))
+    rule=lambda m, p: 
+        #(m.AnnualEmissions[p] + m.H2AnnualEmissions[p])* m.carbon_cost_dollar_per_tco2[p],
+        (m.AnnualEmissions[p])* m.carbon_cost_dollar_per_tco2[p],
+        #sum(getattr(m, component)[p] for component in m.System_Emissions)* m.carbon_cost_dollar_per_tco2[p],
+    doc=("Enforces the carbon cap for generation-related emissions."))
     model.Cost_Components_Per_Period.append('EmissionsCosts')
+
+
+def define_dynamic_components(model):
+    model.Enforce_Carbon_Cap = Constraint(model.PERIODS,
+        rule=lambda m, p:
+            Constraint.Skip if m.carbon_cap_tco2_per_yr[p] == float('inf')
+            #else (m.AnnualEmissions[p]+m.H2AnnualEmissions[p]) <= m.carbon_cap_tco2_per_yr[p],
+            #else (m.AnnualEmissions[p]) <= m.carbon_cap_tco2_per_yr[p],
+            else (sum(getattr(m, component)[p] for component in m.System_Emissions) <= m.carbon_cap_tco2_per_yr[p]),
+        doc=("Enforces the carbon cap for generation-related emissions."))
+
+
 
 
 def load_inputs(model, switch_data, inputs_dir):
