@@ -86,11 +86,11 @@ def define_components(m):
         rule = lambda m, p: sum(
             -m.itc_value[p, m.gen_tech[g]] * m.gen_overnight_cost[g, p] *
             crf(m.interest_rate, m.gen_max_age[g]) * m.BuildGen[g, p] #m.GenCapitalCosts[g,p]
-            for (g, p) in m.NEW_GEN_BLD_YRS
-            if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
-            and p < 2040
+            for (g, per) in m.NEW_GEN_BLD_YRS
+            if (m.gen_tech[g] in set([item[1] for item in m.credit_years.data()]))
+            and (per==p)) 
+            #and p < 2040
         )
-    )
     m.Cost_Components_Per_Period.append('ITC_per_period')
 
 def load_inputs(mod, switch_data, inputs_dir):
