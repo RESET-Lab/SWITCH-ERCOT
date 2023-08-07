@@ -172,6 +172,7 @@ def define_components(m):
     #    m.ConsumeElecMW[z,t] <= sum(m.DispatchGen[g, t] for (g, t) in m.GEN_TPS if (g in m.VARIABLE_GENS and g in m.GENS_IN_ZONE[z])))
 
     #System-wide constraint
+    #I wonder if there is a way to calculate curtailed electricity and use that for the constraint instead?
     m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.TIMEPOINTS, rule=lambda m, t:
         sum(m.ConsumeElecMW[z,t] for z in m.LOAD_ZONES) <=
         sum(m.DispatchGen[g, t] for (g, t) in m.GEN_TPS if g in m.VARIABLE_GENS))
@@ -323,31 +324,7 @@ def define_components(m):
     #m.HydrogenNetStorageLimit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
     #    m.HydrogenNetStorageKg[z, tp] <= m.H2StorageCapacityKgPerHour[z, m.tp_period[tp]])
 
-    """
-    Hydrogen pipeline line packing pseudocode
-
-    1. Define new storage projects called pipeline
-    2. Add optional input called IS_TX or IS_PIPELINE. Will default to False, but set to true for this project
-    3. Set the cost of this storage project to 0, since the development of this project is already covered in transmission costs (unless there are other costs to consider?)
-    4. Within the module, constrain the m.BuildH2StorageKg variable for all storage projects where IS_TX = True
-    5. If true, force m.BuildH2StorageKg to be equal to half of the total pipeline capacity connected to this load zone, scaled based on allowable pressures and things like that
-        a. Assuming 50-50 split between each load zone seems fine to me
     
-    m.IS_TX = Param(m.H2_STORAGE_BUILD_YRS, default=False, within=boolean)
-
-    m.LINEPACKING_YRS = Set(initialize = m.H2_STORAGE_BUILD_YRS_ZONES,
-                            filter = lambda m,g,z,p : m.IS_TX[g,p])
-    
-    m.LinePackingCapacity = Expression(m.LINEPACKING_YRS, rule = lambda m,g,z,p:
-        sum(m.PtxCapacityNameplateAvailableForH2[r, pr, p])*0.5 
-        for (r, pr, per) in m.PIPELINES_BLD_YRS 
-        if (m.pipes_hn1[r]==z) or (m.pipes_hn2[r]==z)
-    )
-
-    m.LinePackingConstraint = Constraint(m.LINEPACKING_YRS, rule=lambda m,g,z,p:
-        m.H2StorageCapacityKg[g,z,p] <= m.LinepackingCapacity[g,z,p])
-
-    """
     #Constraint to track storage state, but it breaks for periods with a single timepoint, so I added in something to account for that
     #That likely won't ever come up for real test cases, but it should be included so I can keep testing on the 3_zone_toy
     m.ts_previous = Param(
@@ -608,6 +585,40 @@ def define_components(m):
         m.LOAD_ZONES, m.TIMEPOINTS,
         rule=PTXPowerNet_calculation)
 
+
+    """
+    Hydrogen pipeline line packing pseudocode
+
+    1. Define new storage projects called pipeline
+    2. Add optional input called IS_TX or IS_PIPELINE. Will default to False, but set to true for this project
+    3. Set the cost of this storage project to 0, since the development of this project is already covered in transmission costs (unless there are other costs to consider?)
+    4. Within the module, constrain the m.BuildH2StorageKg variable for all storage projects where IS_TX = True
+    5. If true, force m.BuildH2StorageKg to be equal to half of the total pipeline capacity connected to this load zone, scaled based on allowable pressures and things like that
+        a. Assuming 50-50 split between each load zone seems fine to me
+
+
+    Look to see if there are any additional costs associated with linepacking and look to figure out a way to estimate storage capacity for a pipeline
+    """
+
+    m.IS_PX = Param(m.H2_STORAGE_PROJECTS, default=False, within=Boolean)
+
+    m.LINEPACKING_PROJECTS = Set(initialize = m.H2_STORAGE_PROJECTS,
+                            filter = lambda m, g : m.IS_PX[g])
+    
+    m.LINEPACKING_YRS_ZONES = Set(
+        dimen=3,
+        initialize = m.LINEPACKING_PROJECTS * m.LOAD_ZONES * m.PERIODS
+    )
+
+    m.LinePackingCapacity = Expression(m.LINEPACKING_YRS_ZONES, rule = lambda m,g,z,p:
+        sum(m.PtxCapacityNameplateAvailableForH2[r, pr, p]*0.5 
+        for (r, pr, per) in m.PIPELINES_BLD_YRS 
+        if (per==p) and ((m.pipes_hn1[r]==z) or (m.pipes_hn2[r]==z)))
+    )
+
+    m.LinePackingConstraint = Constraint(m.LINEPACKING_YRS_ZONES, rule=lambda m,g,z,p:
+        m.H2StorageCapacityKg[g,z,p] <= m.LinePackingCapacity[g,z,p])
+
     # Register net transmission as contributing to zonal energy balance
     m.Hydrogen_Injections.append('PTXPowerNet')
 
@@ -861,7 +872,8 @@ def load_inputs(m, switch_data, inputs_dir):
         auto_select=True, index=m.H2_STORAGE_PROJECTS,
         param=(
             m.h2_storage_life_years,
-            m.h2_storage_minimum_size_kg
+            m.h2_storage_minimum_size_kg,
+            m.IS_PX
         )
     )
     #switch_data.load_aug(
@@ -999,7 +1011,7 @@ def post_solve(instance, outdir):
     reporting.write_table(
         instance, instance.PIPELINES_BLD_YRS,
         output_file=os.path.join(outdir, "PtxNameplateCapacity.csv"),
-        headings=("period", "PtxNameplateCapacity", "PtxNameplateCapacityForH2"),
+        headings=("TRANSPORT_ROUTE", "TRANSPORT_PROJECT", "period", "PtxNameplateCapacity", "PtxNameplateCapacityForH2"),
         values=lambda m, r, p, period: (
             r, p, period, m.PtxCapacityNameplate[r, p, period], m.PtxCapacityNameplateAvailableForH2[r, p, period]
             ))
