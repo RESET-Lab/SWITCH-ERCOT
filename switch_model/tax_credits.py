@@ -88,7 +88,7 @@ def define_components(m):
             crf(m.interest_rate, m.gen_max_age[g]) * m.BuildGen[g, p] #m.GenCapitalCosts[g,p]
             for (g, per) in m.NEW_GEN_BLD_YRS
             if (m.gen_tech[g] in set([item[1] for item in m.credit_years.data()]))
-            and (per==p)) 
+            and (per==p)) #Fix this later bc rn this is silly+
             #and p < 2040
         )
     m.Cost_Components_Per_Period.append('ITC_per_period')
