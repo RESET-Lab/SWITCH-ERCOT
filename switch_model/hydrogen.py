@@ -23,7 +23,7 @@ TO-DO:
             - Options for retrofitting? AND option to build new pure hydrogen pipelines
         - determine best way to include existing pipeline infrastructure
             - I have a basic version now, take a look at the transmission_lines.csv file
-            in Pedro's dataset to see what other information might be relevant
+              in Pedro's dataset to see what other information might be relevant
         - Remember to go back and correct the efficiencies
             - How should we be defining pipeline efficiency? It's not like it gets dissipated. Define in terms of pressure drop? Why does that matter though?
     - STORAGE:
@@ -73,7 +73,7 @@ TO-DO:
             -This should already be covered by the mass balance, but will need to double check
                 - Difficult to know for sure when the fuel cells are not being used ever in these tests really
             -Be careful to avoid double counting any hydrogen used.
-                - In fact you may want to take the hydrogen used for fuel cells out of the mass balance
+                - In fact you may want to take the hydrogen used for fuel cells out of the mass balance - why would I do that?
     - Load profile for hydrogen (transportation?)
         - Would make sense to include industry demand for hydrogen, since that is what most hydrogen is being used for in Texas currently
     - Account for geologic storage
@@ -140,123 +140,61 @@ def define_components(m):
 
     m.Hydrogen_Withdrawals.append('hydrogen_demand_kg')
 
-    """
-    # electrolyzer details
-    """
-    m.hydrogen_electrolyzer_capital_cost_per_kgh = Param(m.PERIODS)
-    m.hydrogen_electrolyzer_fixed_cost_per_kgh_year = Param(m.PERIODS, default=0.0)
-    m.hydrogen_electrolyzer_variable_cost_per_kg = Param(m.PERIODS, default=0.0)  # assumed to include any refurbishment needed
-    m.hydrogen_electrolyzer_kg_per_mwh = Param() # assumed to deliver H2 at enough pressure for liquifier and daily buffering
-    m.hydrogen_electrolyzer_life_years = Param()
-    m.BuildElectrolyzerKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)
-    m.ElectrolyzerCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildElectrolyzerKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
-        if ((m.period_start[p] - m.period_start[p_]) < m.hydrogen_electrolyzer_life_years)))
-    m.DispatchElectrolyzerKgPerHour = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals) #by power sector TPS or H node TPS?
-    m.Max_Dispatch_Electrolyzer = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        m.DispatchElectrolyzerKgPerHour[z, t] <= m.ElectrolyzerCapacityKgPerHour[z, m.tp_period[t]])
+    m.HYDROGEN_GEN = Set()
+    m.H2_GEN_PERIODS = Set(dimen=2)
+    m.H2_GEN_BLD_YRS = Set(dimen=3, initialize=m.HYDROGEN_GEN*m.LOAD_ZONES*m.PERIODS)
 
-    #Let hydrogen production be a direct decision variable with DispatchElectrolyzer and then calculate the electricity requirements
+    m.kg_per_unit = Param(m.HYDROGEN_GEN)
+    m.life_years = Param(m.HYDROGEN_GEN)
+    m.co2_per_kg = Param(m.HYDROGEN_GEN)
+    m.h2_gen_fuel = Param(m.HYDROGEN_GEN)
+    m.IS_ELECTROLYSIS = Param(m.HYDROGEN_GEN, within=Boolean)
+
+    m.capital_cost_per_kgh = Param(m.H2_GEN_PERIODS)
+    m.fixed_cost_per_kgh_year = Param(m.H2_GEN_PERIODS)
+    m.variable_cost_per_kg = Param(m.H2_GEN_PERIODS)
+    
+    m.ELECTROLYSIS_GEN = Set(initialize=m.HYDROGEN_GEN, filter=lambda m, g:m.IS_ELECTROLYSIS[g])
+    m.NG_GEN = Set(initialize=m.HYDROGEN_GEN, filter= lambda m, g: m.IS_ELECTROLYSIS[g]==False)
+
+    m.BuildH2Gen = Var(m.H2_GEN_BLD_YRS, within=NonNegativeReals)
+
+    m.H2GenCapacity = Expression(m.H2_GEN_BLD_YRS, rule=lambda m, g, z, p:
+        sum(m.BuildH2Gen[g, z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
+        if ((m.period_start[p] - m.period_start[p_]) < m.life_years[g])))
+    
+    m.DispatchH2Gen = Var(m.HYDROGEN_GEN, m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
+
+    m.Max_H2_Dispatch = Constraint(m.HYDROGEN_GEN, m.LOAD_ZONES, m.TIMEPOINTS, rule=
+        lambda m, g, z, t: m.DispatchH2Gen[g, z, t] <= m.H2GenCapacity[g, z, m.tp_period[t]])
+
     m.ConsumeElecMW = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        m.DispatchElectrolyzerKgPerHour[z, t] / m.hydrogen_electrolyzer_kg_per_mwh
+        sum(m.DispatchH2Gen[g, z, t] / m.kg_per_unit[g] for g in m.ELECTROLYSIS_GEN)
     )
-
-    #Define constraint so that the electricity consumed for electrolysis does not exceed the amount of generation from variable sources
-    #Two ways we could define this:
-        #1. I could define it at the load zone level (electrolysis < renewable gen in that load zone) if we only wanted to allow for local/onsite electrolysis
-        #2. Define at a system level (total electrolysis < total renewable gen), which would allow the use of renewable gen from other load zones, but would be hard to track
-        #that and would you even know if you were using renewables. I think I will tie it to "on-site" generation for now at the load zone level
-
-    # Load zone level limitation
-    #m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m,z,t:
-    #    m.ConsumeElecMW[z,t] <= sum(m.DispatchGen[g, t] for (g, t) in m.GEN_TPS if (g in m.VARIABLE_GENS and g in m.GENS_IN_ZONE[z])))
 
     #System-wide constraint
     #I wonder if there is a way to calculate curtailed electricity and use that for the constraint instead?
     m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.TIMEPOINTS, rule=lambda m, t:
         sum(m.ConsumeElecMW[z,t] for z in m.LOAD_ZONES) <=
         sum(m.DispatchGen[g, t] for (g, t) in m.GEN_TPS if g in m.VARIABLE_GENS))
+    
+    m.H2ZonalDispatch = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
+        sum(m.DispatchH2Gen[g, z , t] for g in m.HYDROGEN_GEN))
 
-    m.Hydrogen_Injections.append('DispatchElectrolyzerKgPerHour')
+    m.Hydrogen_Injections.append('H2ZonalDispatch')
     m.Zone_Power_Withdrawals.append('ConsumeElecMW')
 
-    """
-    #SMR with CCS Details
-    To-do:
-    - Write expression for fuel consumption - Done
-    - Decide on how to incorporate CCS - Done
-        - Treat blue and grey hydrogen as separate build options for simplicity with different costs and emission intensities --> Done
-        - Not sure where the CO2 emissions are used in Switch, but we may want to look into that later --> Calculated in dispatch.py
-    - Minimum builds (code written, not tested) and ramping??
-    - Note: Unlike current fuel tracking in Switch, this does not have the option for natural gas to be unavailable in a load zone. Consider adding later
-    """
+    m.H2FuelUseRate = Var(m.NG_GEN, m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
+    m.H2FuelUseCalculation = Constraint(m.NG_GEN, m.LOAD_ZONES, m.TIMEPOINTS, rule = lambda m, g, z, t:
+        m.H2FuelUseRate[g, z, t] == m.DispatchH2Gen[g, z, t]/m.kg_per_unit[g])
 
-    m.hydrogen_smr_with_ccs_capital_cost_per_kgh = Param(m.PERIODS)
-    m.hydrogen_smr_with_ccs_fixed_cost_per_kgh_year = Param(m.PERIODS, default=0.0)
-    m.hydrogen_smr_with_ccs_variable_cost_per_kg = Param(m.PERIODS, default=0.0)  # assumed to include any refurbishment needed
-    m.hydrogen_smr_with_ccs_min_build = Param()
-    m.hydrogen_smr_with_ccs_kg_per_mmbtu = Param()
-    m.hydrogen_smr_with_ccs_life_years = Param()
-    m.hydrogen_smr_with_ccs_fuel_source = Param()
-    m.hydrogen_smr_with_ccs_co2_per_h2 = Param()
-    m.BuildSMRWithCCSKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)
-    m.SMRWithCCSCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildSMRWithCCSKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
-        if ((p - p_) < m.hydrogen_smr_with_ccs_life_years)))
-    m.DispatchSMRWithCCSKgPerHour = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals) #by power sector TPS or H node TPS?
-    m.Max_Dispatch_SMR_With_CCS = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        m.DispatchSMRWithCCSKgPerHour[z, t] <= m.SMRWithCCSCapacityKgPerHour[z, m.tp_period[t]])
-
-    #m.BuildMinSMRWithCCSCap = Var(
-    #    m.LOAD_ZONES, m.PERIODS,
-    #    within=Binary)
-    #m.Enforce_Min_Build_SMR_With_CCS = Constraint(
-    #    m.LOAD_ZONES, m.PERIODS,
-    #    rule=lambda m, z, p: (
-    #        m.BuildMinSMRWithCCSCap[z, p] * m.hydrogen_smr_with_ccs_min_build
-    #        <= m.BuildSMRWithCCSKgPerHour[z, p]))
-
-    m.hydrogen_smr_no_ccs_capital_cost_per_kgh = Param(m.PERIODS)
-    m.hydrogen_smr_no_ccs_fixed_cost_per_kgh_year = Param(m.PERIODS, default=0.0)
-    m.hydrogen_smr_no_ccs_variable_cost_per_kg = Param(m.PERIODS, default=0.0)  # assumed to include any refurbishment needed
-    m.hydrogen_smr_no_ccs_min_build = Param()
-    m.hydrogen_smr_no_ccs_kg_per_mmbtu = Param()
-    m.hydrogen_smr_no_ccs_life_years = Param()
-    m.hydrogen_smr_no_ccs_fuel_source = Param()
-    m.hydrogen_smr_no_ccs_co2_per_h2 = Param()
-    m.BuildSMRNoCCSKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)
-    m.SMRNoCCSCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildSMRNoCCSKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
-        if ((p - p_) < m.hydrogen_smr_no_ccs_life_years)))
-
-    #m.BuildMinSMRNoCCSCap = Var(
-    #    m.LOAD_ZONES, m.PERIODS,
-    #    within=Binary)
-    #m.Enforce_Min_Build_SMR_No_CCS = Constraint(
-    #    m.LOAD_ZONES, m.PERIODS,
-    #    rule=lambda m, z, p: (
-    #        m.BuildMinSMRNoCCSCap[z, p] * m.hydrogen_smr_no_ccs_min_build
-    #        <= m.BuildSMRNoCCSKgPerHour[z, p]))
-
-
-    m.DispatchSMRNoCCSKgPerHour = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals) #by power sector TPS or H node TPS?
-    m.Max_Dispatch_SMR_No_CCS = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        m.DispatchSMRNoCCSKgPerHour[z, t] <= m.SMRNoCCSCapacityKgPerHour[z, m.tp_period[t]])
-
-    m.SMRFuelUseRate = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
-    m.SMRFuelUseCalculation = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule = lambda m, z, t:
-        m.SMRFuelUseRate[z, t] == m.DispatchSMRWithCCSKgPerHour[z, t]/m.hydrogen_smr_with_ccs_kg_per_mmbtu + m.DispatchSMRNoCCSKgPerHour[z, t]/m.hydrogen_smr_no_ccs_kg_per_mmbtu)
-
-    m.SMRDispatchEmissions = Var(m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
-    m.SMREmissionsCalculation = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule = lambda m, z, t:
-        m.SMRDispatchEmissions[z, t] == (m.DispatchSMRWithCCSKgPerHour[z, t]*m.hydrogen_smr_with_ccs_co2_per_h2 + m.DispatchSMRNoCCSKgPerHour[z,t]*m.hydrogen_smr_no_ccs_co2_per_h2)/1000) #divide by 1000 to convert to tonnes
-
-    m.Hydrogen_Injections.append('DispatchSMRWithCCSKgPerHour')
-    m.Hydrogen_Injections.append('DispatchSMRNoCCSKgPerHour')
-
+    m.H2DispatchEmissions = Var(m.HYDROGEN_GEN, m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
+    m.H2EmissionsCalculation = Constraint(m.HYDROGEN_GEN, m.LOAD_ZONES, m.TIMEPOINTS, rule = lambda m, g, z, t:
+        m.H2DispatchEmissions[g, z, t] == m.DispatchH2Gen[g, z, t]*m.co2_per_kg[g]/1000) #divide by 1000 to convert to tonnes
+    
     m.H2AnnualEmissions = Expression(m.PERIODS,
         rule=lambda m, period: sum(
-            m.SMRDispatchEmissions[z, t] * m.tp_weight_in_year[t]
+            sum(m.H2DispatchEmissions[g, z, t] for g in m.HYDROGEN_GEN) * m.tp_weight_in_year[t] / 1000 #Convert from kg to tonnes
             for (z, t) in m.ZONE_TIMEPOINTS
             if m.tp_period[t] == period),
         doc="The system's annual emissions from hydrogen production, in metric tonnes of CO2 per year.")
@@ -270,8 +208,12 @@ def define_components(m):
     m.H2EmissionsCosts = Expression(m.PERIODS,
     rule=lambda m, p: 
         (m.H2AnnualEmissions[p])* m.carbon_cost_dollar_per_tco2[p],
-    doc=("Enforces the carbon cap for generation-related emissions."))
+    doc=("Enforces the carbon cap for hydrogen-related emissions."))
     m.Cost_Components_Per_Period.append('H2EmissionsCosts')
+    
+    """
+    # electrolyzer details
+    """
 
     """
     # storage tank details
@@ -664,26 +606,43 @@ def define_components(m):
     """
     m.HydrogenVariableCost = Expression(m.TIMEPOINTS, rule=lambda m, t:
         sum(
-            m.DispatchElectrolyzerKgPerHour[z, t] * m.hydrogen_electrolyzer_variable_cost_per_kg[m.tp_period[t]]
-            + m.DispatchSMRWithCCSKgPerHour[z, t] * m.hydrogen_smr_with_ccs_variable_cost_per_kg[m.tp_period[t]]
-            + m.DispatchSMRNoCCSKgPerHour[z, t] * m.hydrogen_smr_no_ccs_variable_cost_per_kg[m.tp_period[t]]
-            + m.SMRFuelUseRate[z, t] * m.fuel_cost[z, m.hydrogen_smr_with_ccs_fuel_source, m.tp_period[t]]
+            #m.DispatchElectrolyzerKgPerHour[z, t] * m.hydrogen_electrolyzer_variable_cost_per_kg[m.tp_period[t]]
+            #+ m.DispatchSMRWithCCSKgPerHour[z, t] * m.hydrogen_smr_with_ccs_variable_cost_per_kg[m.tp_period[t]]
+            #+ m.DispatchSMRNoCCSKgPerHour[z, t] * m.hydrogen_smr_no_ccs_variable_cost_per_kg[m.tp_period[t]]
+            sum(m.DispatchH2Gen[g,z,t]*m.variable_cost_per_kg[g, m.tp_period[t]] for g in m.HYDROGEN_GEN)
+            + sum(m.H2FuelUseRate[g, z, t] * m.fuel_cost[z, m.h2_gen_fuel[g], m.tp_period[t]] for g in m.NG_GEN)
             + sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS) * m.hydrogen_compressor_variable_cost_per_kg[m.tp_period[t]]
             + m.DispatchFuelCellMW[z, t] * m.hydrogen_fuel_cell_variable_cost_per_mwh[m.tp_period[t]]
             for z in m.LOAD_ZONES
         )
     )
+
+    def gen_build_can_operate_in_period(m, g, build_year, period):
+        if build_year in m.PERIODS:
+            online = m.period_start[build_year]
+        else:
+            online = build_year
+        retirement = online + m.life_years[g]
+        return (
+            online <= m.period_start[period] < retirement
+    )
+    # This is probably more correct, but is a different behavior
+    # mid_period = m.period_start[period] + 0.5 * m.period_length_years[period]
+    # return online <= m.period_start[period] and mid_period <= retirement
+
+
+    m.H2_BLD_YRS_FOR_GEN_PERIOD = Set(
+    m.HYDROGEN_GEN, m.PERIODS,
+    initialize=lambda m, g, period: set(
+        bld_yr for (gen, bld_yr) in m.H2_GEN_PERIODS
+        if gen == g and
+            gen_build_can_operate_in_period(m, g, bld_yr, period)))
+
+    #Review this later, because this might have to change from using capacities to using Build variables for everythin
     m.HydrogenFixedCostAnnual = Expression(m.PERIODS, rule=lambda m, p:
         sum(
-            m.ElectrolyzerCapacityKgPerHour[z, p] * (
-                m.hydrogen_electrolyzer_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_electrolyzer_life_years)
-                + m.hydrogen_electrolyzer_fixed_cost_per_kgh_year[p]) #* m.hydrogen_electrolyzer_kg_per_mwh #Why did I have this multiplier here?
-            + m.SMRWithCCSCapacityKgPerHour[z, p] * (
-                m.hydrogen_smr_with_ccs_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_smr_with_ccs_life_years)
-                + m.hydrogen_smr_with_ccs_fixed_cost_per_kgh_year[p])
-            + m.SMRNoCCSCapacityKgPerHour[z, p] * (
-                m.hydrogen_smr_no_ccs_capital_cost_per_kgh[p] * crf(m.interest_rate, m.hydrogen_smr_no_ccs_life_years)
-                + m.hydrogen_smr_no_ccs_fixed_cost_per_kgh_year[p])
+            sum(m.BuildH2Gen[g, z, p_] * m.capital_cost_per_kgh[g, p_] * crf(m.interest_rate, m.life_years[g]) for (g,p_) in m.H2_BLD_YRS_FOR_GEN_PERIOD)
+            + sum(m.BuildH2Gen[g, z, p_] * m.fixed_cost_per_kgh_year[g, p_] for (g,p_) in m.H2_BLD_YRS_FOR_GEN_PERIOD)
             + m.CompressorCapacityKgPerHour[z, p] * (
                 m.hydrogen_compressor_capital_cost_per_kg_per_hour[p] * crf(m.interest_rate, m.hydrogen_compressor_life_years)
                 + m.hydrogen_compressor_fixed_cost_per_kg_hour_year[p])
@@ -691,10 +650,6 @@ def define_components(m):
                 m.h2_storage_capital_cost_per_kg[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s]))
             + m.H2StorageCapacityKgPerHour[s, z, p] * (
                 m.h2_storage_capital_cost_per_kg_per_hour[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s])) for s in m.H2_STORAGE_PROJECTS)
-            #+ m.H2StorageCapacityKg[z, p] * (
-            #    m.h2_storage_capital_cost_per_kg[p] * crf(m.interest_rate, m.h2_storage_life_years))
-            #+ m.H2StorageCapacityKgPerHour[z, p] * (
-            #    m.h2_storage_capital_cost_per_kg_per_hour[p] * crf(m.interest_rate, m.h2_storage_life_years))
             + m.FuelCellCapacityMW[z, p] * (
                 m.hydrogen_fuel_cell_capital_cost_per_mw[p] * crf(m.interest_rate, m.hydrogen_fuel_cell_life_years)
                 + m.hydrogen_fuel_cell_fixed_cost_per_mw_year[p])
@@ -704,7 +659,7 @@ def define_components(m):
     m.Cost_Components_Per_TP.append('HydrogenVariableCost')
     m.Cost_Components_Per_Period.append('HydrogenFixedCostAnnual')
 
-    """
+    
     # Need to figure out to mesh this code with how I have define the different generation options above. Maybe I should generalize the code?
 
     # Incorporate the effect of the production tax credit and investment tax credit for hydrogen_projects
@@ -720,8 +675,6 @@ def define_components(m):
     )
     m.h2_itc_value = Param(
         m.h2_credit_years,
-        #input_file="ptc_values.csv",
-        #input_column="ptc_value",
         default=0,
         domain=NonNegativeReals#,
         #doc="Investment Tax Credit (ITC) for given technology by period. Data in $/MW",
@@ -732,64 +685,64 @@ def define_components(m):
     # order to recieve credit, and that all generators will no longer recieve the PTC
     # starting in 2040.
     m.h2_ptc_eligible_yrs = Set(
-        m.GENERATION_PROJECTS,
+        m.HYDROGEN_GEN,
         m.PERIODS,
         ordered=False,
         initialize=lambda m, g, period: set(
             bld_yr
-            for bld_yr in m.BLD_YRS_FOR_GEN_PERIOD[g, period]
+            for bld_yr in m.H2_BLD_YRS_FOR_GEN_PERIOD[g, period]
             if 2025 <= bld_yr < 2035 and period < 2040 #projects built in 2030 would be able to receive the credit in 2040, I think? Check this later
         ),
     )
     # Calculate the total eligible PTC capacity per period
-    m.PTC_Capacity = Expression(
-        m.GENERATION_PROJECTS,
+    m.H2_PTC_Capacity = Expression(
+        m.HYDROGEN_GEN,
         m.PERIODS,
         rule=lambda m, g, period: sum(
-            m.BuildGen[g, bld_yr] for bld_yr in m.ptc_eligible_yrs[g, period]
+            sum(m.BuildH2Gen[g, z, bld_yr] for z in m.LOAD_ZONES) for bld_yr in m.h2_ptc_eligible_yrs[g, period]
         ),
     )
 
     # Same as PTC_Capacity but per timepoint
-    m.PTC_CapacityInTP = Expression(
-        m.GEN_TPS, rule=lambda m, g, t: m.PTC_Capacity[g, m.tp_period[t]]
+    m.H2_PTC_CapacityInTP = Expression(
+        m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.H2_PTC_Capacity[g, m.tp_period[t]]
     )
 
     # Create PTC variable that will either return the PTC Capacity or the DispatchGen
     # whichever is minimum.
-    m.PTC = Var(m.GEN_TPS, domain=NonNegativeReals)
+    m.H2PTC = Var(m.HYDROGEN_GEN, m.TIMEPOINTS, domain=NonNegativeReals)
 
-    m.PTC_lower_bound = Constraint(
-        m.GEN_TPS, rule=lambda m, g, t: m.PTC[g, t] <= m.PTC_CapacityInTP[g, t]
+    m.H2PTC_lower_bound = Constraint(
+        m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.H2PTC[g, t] <= m.H2_PTC_CapacityInTP[g, t]
     )
-    m.PTC_upper_bound = Constraint(
-        m.GEN_TPS, rule=lambda m, g, t: m.PTC[g, t] <= m.DispatchGen[g, t]
+    m.H2PTC_upper_bound = Constraint(
+        m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.H2PTC[g, t] <= sum(m.DispatchH2Gen[g, z, t] for z in m.LOAD_ZONES)
     )
 
     # Calculate PTC
-    m.PTC_per_tp = Expression(
+    m.H2_PTC_per_tp = Expression(
         m.TIMEPOINTS,
         rule=lambda m, t: sum(
-            -m.PTC[g, t] * m.ptc_value[m.tp_period[t], m.gen_tech[g]]
-            for g in m.GENS_IN_PERIOD[m.tp_period[t]]
-            if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
+            -m.H2PTC[g, t] * m.h2_ptc_value[m.tp_period[t], g]
+            for g in m.HYDROGEN_GEN
+            if g in set([item[1] for item in m.h2_credit_years.data()])
             and m.tp_period[t] < 2040
         ),
     )
-    m.Cost_Components_Per_TP.append("PTC_per_tp")
+    m.Cost_Components_Per_TP.append("H2_PTC_per_tp")
 
     # Calculate ITC
-    m.ITC_per_period = Expression(
-        m.PERIODS,
-        rule = lambda m, p: sum(
-            -m.itc_value[p, m.gen_tech[g]] * m.GenCapitalCosts[g,p]
-            for (g, p) in m.NEW_GEN_BLD_YRS
-            if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
-            and p < 2040
-        )
-    )
-    m.Cost_Components_Per_Period.append('ITC_per_period')
-    """
+    #m.ITC_per_period = Expression(
+    #    m.PERIODS,
+    #    rule = lambda m, p: sum(
+    #        -m.h2_itc_value[p, m.gen_tech[g]] * m.GenCapitalCosts[g,p]
+    #        for (g, p) in m.NEW_GEN_BLD_YRS
+    #        if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
+    #        and p < 2040
+    #    )
+    #)
+    #m.Cost_Components_Per_Period.append('ITC_per_period')
+
 
 def load_inputs(m, switch_data, inputs_dir):
 
@@ -805,27 +758,53 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, 'hydrogen_generation_costs.csv'),
         optional=False,
         auto_select=True,
+        index = m.H2_GEN_PERIODS,
+        param=(
+            m.capital_cost_per_kgh,
+            m.fixed_cost_per_kgh_year,
+            m.variable_cost_per_kg,
+        )
+    )
+
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, 'hydrogen_projects_costs.csv'),
+        optional=False,
+        auto_select=True,
         index = m.PERIODS,
         param=(
-            m.hydrogen_electrolyzer_capital_cost_per_kgh,
-            m.hydrogen_electrolyzer_fixed_cost_per_kgh_year,
-            m.hydrogen_electrolyzer_variable_cost_per_kg,
             m.hydrogen_fuel_cell_capital_cost_per_mw,
             m.hydrogen_fuel_cell_fixed_cost_per_mw_year,
             m.hydrogen_fuel_cell_variable_cost_per_mwh,
             m.hydrogen_compressor_capital_cost_per_kg_per_hour,
             m.hydrogen_compressor_fixed_cost_per_kg_hour_year,
             m.hydrogen_compressor_variable_cost_per_kg,
-            m.h2_storage_capital_cost_per_kg,
-            m.h2_storage_capital_cost_per_kg_per_hour,
-            m.hydrogen_smr_with_ccs_capital_cost_per_kgh,
-            m.hydrogen_smr_with_ccs_fixed_cost_per_kgh_year,
-            m.hydrogen_smr_with_ccs_variable_cost_per_kg,
-            m.hydrogen_smr_no_ccs_capital_cost_per_kgh,
-            m.hydrogen_smr_no_ccs_fixed_cost_per_kgh_year,
-            m.hydrogen_smr_no_ccs_variable_cost_per_kg,
         )
     )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, 'hydrogen_generation_params.csv'),
+        optional=False,
+        auto_select=True,
+        index=m.HYDROGEN_GEN,
+        param=(
+            m.kg_per_unit,
+            m.life_years,
+            m.co2_per_kg,
+            m.h2_gen_fuel,
+            m.IS_ELECTROLYSIS,
+        )
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, 'hydrogen_projects_params.csv'),
+        optional=False,
+        auto_select=True,
+        param=(
+            m.hydrogen_fuel_cell_life_years,
+            m.hydrogen_fuel_cell_mwh_per_kg,
+            m.hydrogen_compressor_life_years,
+            m.hydrogen_compressor_mwh_per_kg,
+        )
+    )
+
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'hydrogen_emissions.csv'),
         optional=False,
@@ -834,27 +813,7 @@ def load_inputs(m, switch_data, inputs_dir):
         index=m.PERIODS,
         param=(m.hydrogen_emission_cap))
 
-    switch_data.load_aug(
-        filename=os.path.join(inputs_dir, 'hydrogen_generation_params.csv'),
-        optional=False,
-        auto_select=True,
-        param=(
-            m.hydrogen_electrolyzer_kg_per_mwh,
-            m.hydrogen_electrolyzer_life_years,
-            m.hydrogen_fuel_cell_life_years,
-            m.hydrogen_fuel_cell_mwh_per_kg,
-            m.hydrogen_compressor_life_years,
-            m.hydrogen_compressor_mwh_per_kg,
-            m.hydrogen_smr_with_ccs_kg_per_mmbtu,
-            m.hydrogen_smr_with_ccs_life_years,
-            m.hydrogen_smr_with_ccs_fuel_source,
-            m.hydrogen_smr_with_ccs_co2_per_h2,
-            m.hydrogen_smr_no_ccs_kg_per_mmbtu,
-            m.hydrogen_smr_no_ccs_life_years,
-            m.hydrogen_smr_no_ccs_fuel_source,
-            m.hydrogen_smr_no_ccs_co2_per_h2
-        )
-    )
+
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'hydrogen_storage_costs.csv'),
         optional=False,
@@ -876,24 +835,6 @@ def load_inputs(m, switch_data, inputs_dir):
             m.IS_PX
         )
     )
-    #switch_data.load_aug(
-    #    filename=os.path.join(inputs_dir, 'LOAD_ZONES.csv'),
-    #    optional=False, auto_select=True,
-    #    index=m.LOAD_ZONES,
-    #    param=(
-    #        m.coupled_load_zones,
-    #        m.hydrogen_dbid
-    #    )
-    #)
-
-    #switch_data.load_aug(
-    #    filename=os.path.join(inputs_dir, 'load_zones.csv'),
-    #    optional=False, auto_select=True,
-    #    index=m.LOAD_ZONES,
-    #    param=(
-    #        m.coupled_LOAD_ZONES
-    #    )
-    #)
 
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'hydrogen_loads.csv'),
@@ -925,6 +866,12 @@ def load_inputs(m, switch_data, inputs_dir):
             m.pipes_fixed_om_fraction, m.blend_limit, m.pipes_efficiency, m.is_pre_existing
         )
     )
+
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, 'h2_tax_credits.csv'),
+        autoselect=True,
+        index=m.h2_credit_years,
+        param=(m.h2_ptc_value, m.h2_itc_value))
 
 
 def post_solve(instance, outdir):
@@ -964,27 +911,18 @@ def post_solve(instance, outdir):
             ))
 
     reporting.write_table(
-        instance, instance.LOAD_ZONES*instance.PERIODS,
-        output_file=os.path.join(outdir, "hydrogen_build.csv"),
-        headings=("Load Zone", "period", "BuildElectrolyzerKgPerHour", "BuildSMRWithCCSKgPerHour",
-         "BuildSMRNoCCSKgPerHour", "BuildFuelCellMW",
-         "SMRWithCCSCapacityKgPerHour", "SMRNoCCSCapacityKgPerHour"),
-        values=lambda m, z, p: (
-            z, p, m.BuildElectrolyzerKgPerHour[z, p], m.BuildSMRWithCCSKgPerHour[z,p],
-             m.BuildSMRNoCCSKgPerHour[z,p], m.BuildFuelCellMW[z, p],
-             m.SMRWithCCSCapacityKgPerHour[z, p], m.SMRNoCCSCapacityKgPerHour[z, p]
+        instance, instance.HYDROGEN_GEN*instance.LOAD_ZONES*instance.PERIODS,
+        output_file=os.path.join(outdir, "hydrogen_cap.csv"),
+        headings=("HYDROGEN_GEN","Load Zone", "period", "BuildH2Gen", "H2GenCapacity"),
+        values=lambda m, g, z, p: (
+            g, z, p, m.BuildH2Gen[g, z, p], m.H2GenCapacity[g, z, p]
             ))
-
     reporting.write_table(
         instance, instance.LOAD_ZONES*instance.PERIODS,
-        output_file=os.path.join(outdir, "hydrogen_capacities.csv"),
-        headings=("Load Zone", "period", "SMRWithCCSCapacityKgPerHour", "SMRNoCCSCapacityKgPerHour",
-        "ElectrolyzerCapacityKgPerHour",
-        "FuelCellCapacityMW"),
+        output_file=os.path.join(outdir, "hydrogen_cap_other.csv"),
+        headings=("Load Zone", "period", "FuelCellCapacityMW"),
         values=lambda m, z, p: (
-            z, p, m.SMRWithCCSCapacityKgPerHour[z, p], m.SMRNoCCSCapacityKgPerHour[z, p],
-            m.ElectrolyzerCapacityKgPerHour[z, p],
-            m.FuelCellCapacityMW[z, p]
+            z, p, m.FuelCellCapacityMW[z, p]
             ))
 
     reporting.write_table(
@@ -996,14 +934,20 @@ def post_solve(instance, outdir):
             ))
 
     reporting.write_table(
-        instance, instance.HNODE_TPS,
+        instance, instance.HYDROGEN_GEN*instance.LOAD_ZONES*instance.TIMEPOINTS,
         output_file=os.path.join(outdir, "hydrogen_dispatch.csv"),
+        headings=("HYDROGEN_GEN", "Load Zone", "timepoint", "DispatchH2Gen"),
+        values=lambda m, g, z, t: (
+            g, z, m.tp_timestamp[t],
+             m.DispatchH2Gen[g, z, t]
+            ))
+    reporting.write_table(
+        instance, instance.HNODE_TPS,
+        output_file=os.path.join(outdir, "hydrogen_dispatch_other.csv"),
         headings=("Load Zone", "timepoint",
-        "DispatchElectrolyzerKgPerHour", "DispatchSMRWithCCSKgPerHour", "DispatchSMRNoCCSKgPerHour", "ConsumeElecMW",
-        "ConsumeHydrogenKgPerHour","DispatchFuelCellMW", "NetTransmission"),
+        "ConsumeElecMW", "ConsumeHydrogenKgPerHour", "DispatchFuelCellMW", "NetTransmission"),
         values=lambda m, z, t: (
             z, m.tp_timestamp[t],
-             m.DispatchElectrolyzerKgPerHour[z, t], m.DispatchSMRWithCCSKgPerHour[z,t], m.DispatchSMRNoCCSKgPerHour[z,t],
              m.ConsumeElecMW[z,t], m.ConsumeHydrogenKgPerHour[z,t], m.DispatchFuelCellMW[z, t],
              m.PTXPowerNet[z,t]
             ))
