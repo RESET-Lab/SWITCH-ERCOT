@@ -174,10 +174,17 @@ def define_components(m):
 
     #System-wide constraint
     #I wonder if there is a way to calculate curtailed electricity and use that for the constraint instead?
+
+    #Hourly matching
     m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.TIMEPOINTS, rule=lambda m, t:
         sum(m.ConsumeElecMW[z,t] for z in m.LOAD_ZONES) <=
-        sum(m.DispatchGen[g, t] for (g, t) in m.GEN_TPS if g in m.VARIABLE_GENS))
+        sum(m.DispatchGen[g, tp] for (g, tp) in m.GEN_TPS if g in m.VARIABLE_GENS and tp==t))
     
+    #Annual matching
+    #m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.PERIODS, rule=lambda m, p:
+    #    sum(m.ConsumeElecMW[z,t] for (z in m.LOAD_ZONES) and (t in m.TPS_IN_PERIOD[p])) <=
+    #    sum(m.DispatchGen[g, t] for (g, t) in m.GEN_TPS if g in m.VARIABLE_GENS and t is in m.TPS_IN_PERIOD[p]))
+
     m.H2ZonalDispatch = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
         sum(m.DispatchH2Gen[g, z , t] for g in m.HYDROGEN_GEN))
 
@@ -811,8 +818,8 @@ def load_inputs(m, switch_data, inputs_dir):
         #optional_params=(m.hydrogen_emission_cap),
         auto_select=True,
         index=m.PERIODS,
-        param=(m.hydrogen_emission_cap))
-
+        param=(m.hydrogen_emission_cap)
+    )
 
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'hydrogen_storage_costs.csv'),
@@ -825,6 +832,7 @@ def load_inputs(m, switch_data, inputs_dir):
             m.h2_storage_fixed_om_per_kg_per_hour
         )
     )
+
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'hydrogen_storage_params.csv'),
         optional=False,
@@ -857,6 +865,7 @@ def load_inputs(m, switch_data, inputs_dir):
             m.pipes_length_km, m.existing_pipes_cap
         )
     )
+
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'pipes_params.csv'),
         optional=True, auto_select=True,
