@@ -280,18 +280,63 @@ def define_dynamic_components(mod):
         return sum(
             getattr(m, annual_cost)[p]
             for annual_cost in m.Cost_Components_Per_Period)
+    """
+    def gen_build_can_operate_in_period(m, g, build_year, period):
+        if build_year in m.PERIODS:
+            online = m.period_start[build_year]
+        else:
+            online = build_year
+        retirement = online + m.gen_max_age[g]
+        return (
+            online <= m.period_start[period] < retirement
+        )
+        
+    def calc_future_costs_for_last_period(m, g, bld_yr, p):
+        remaining_yrs = m.gen_max_age[g] - (m.period_end[p] - bld_yr)
+        if remaining_yrs < 0:
+            remaining_yrs = 0
+
+        remaining_costs = ((m.gen_overnight_cost[g, bld_yr] + m.gen_connect_cost_per_mw[g]) * \
+                            capital_recovery_factor(m.interest_rate, m.gen_max_age[g])) * remaining_yrs * m.BuildGen[g, bld_yr]
+        return remaining_costs
+    """
 
     def calc_sys_costs_per_period(m, p):
         return (
-            # All annual payments in the period
-            (
-                calc_annual_costs_in_period(m, p) +
-                sum(calc_tp_costs_in_period(m, t) for t in m.TPS_IN_PERIOD[p])
-            ) *
-            # Conversion from annual costs to base year
-            m.bring_annual_costs_to_base_year[p]
-        )
-
+                # All annual payments in the period
+                (
+                    calc_annual_costs_in_period(m, p) +
+                    sum(calc_tp_costs_in_period(m, t) for t in m.TPS_IN_PERIOD[p])
+                ) *
+                # Conversion from annual costs to base year
+                m.bring_annual_costs_to_base_year[p]
+            )
+    """
+        if p==m.PERIODS[-1]:
+            return (
+                # All annual payments in the period
+                (
+                    calc_annual_costs_in_period(m, p)
+                    + sum(calc_tp_costs_in_period(m, t) for t in m.TPS_IN_PERIOD[p])
+                    #+ sum(calc_future_costs_for_last_period(m,g, bld_yr, p) for (g, bld_yr) in m.GEN_BLD_YRS 
+                    #if gen_build_can_operate_in_period(m, g, bld_yr, p)) #add additional costs here, rough approximation
+                ) *
+                # Conversion from annual costs to base year
+                m.bring_annual_costs_to_base_year[p]
+                
+            )
+        else:
+            return (
+                # All annual payments in the period
+                (
+                    calc_annual_costs_in_period(m, p) +
+                    sum(calc_tp_costs_in_period(m, t) for t in m.TPS_IN_PERIOD[p])
+                ) *
+                # Conversion from annual costs to base year
+                m.bring_annual_costs_to_base_year[p]
+            )
+    """
+    
     mod.SystemCostPerPeriod = Expression(
         mod.PERIODS,
         rule=calc_sys_costs_per_period)

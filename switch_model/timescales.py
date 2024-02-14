@@ -296,8 +296,6 @@ def define_components(mod):
             (m.period_end[p] + 1 - m.period_start[p]) * hours_per_year - hours_in_period[p]
                 for p in m.PERIODS)
         add_one = (abs(err_add_one) < abs(err_plain))
-        print("add_one: ", add_one)
-        #add_one = False
         return add_one
     mod.add_one_to_period_end = Param(within=Boolean, initialize=add_one_to_period_end_rule)
 

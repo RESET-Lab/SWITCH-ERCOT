@@ -217,10 +217,6 @@ def define_components(m):
         (m.H2AnnualEmissions[p])* m.carbon_cost_dollar_per_tco2[p],
     doc=("Enforces the carbon cap for hydrogen-related emissions."))
     m.Cost_Components_Per_Period.append('H2EmissionsCosts')
-    
-    """
-    # electrolyzer details
-    """
 
     """
     # storage tank details
@@ -281,8 +277,6 @@ def define_components(m):
         within=m.TIMESERIES,
         initialize=lambda m, ts: m.TIMESERIES.prevw(ts))
     def Track_Storage_State_TP_rule(m, s, z, tp):
-        currentTS = m.tp_ts[tp]
-        currentPeriod = m.tp_period[tp]
 
         #for the rare case of a period with a single timepoint
         if m.tp_previous[tp] == tp:
@@ -613,9 +607,6 @@ def define_components(m):
     """
     m.HydrogenVariableCost = Expression(m.TIMEPOINTS, rule=lambda m, t:
         sum(
-            #m.DispatchElectrolyzerKgPerHour[z, t] * m.hydrogen_electrolyzer_variable_cost_per_kg[m.tp_period[t]]
-            #+ m.DispatchSMRWithCCSKgPerHour[z, t] * m.hydrogen_smr_with_ccs_variable_cost_per_kg[m.tp_period[t]]
-            #+ m.DispatchSMRNoCCSKgPerHour[z, t] * m.hydrogen_smr_no_ccs_variable_cost_per_kg[m.tp_period[t]]
             sum(m.DispatchH2Gen[g,z,t]*m.variable_cost_per_kg[g, m.tp_period[t]] for g in m.HYDROGEN_GEN)
             + sum(m.H2FuelUseRate[g, z, t] * m.fuel_cost[z, m.h2_gen_fuel[g], m.tp_period[t]] for g in m.NG_GEN)
             + sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS) * m.hydrogen_compressor_variable_cost_per_kg[m.tp_period[t]]
@@ -645,19 +636,19 @@ def define_components(m):
         if gen == g and
             gen_build_can_operate_in_period(m, g, bld_yr, period)))
 
-    #Review this later, because this might have to change from using capacities to using Build variables for everythin
+    #Review this later, because this might have to change from using capacities to using Build variables for everything -> Done
     m.HydrogenFixedCostAnnual = Expression(m.PERIODS, rule=lambda m, p:
         sum(
             sum(m.BuildH2Gen[g, z, p_] * m.capital_cost_per_kgh[g, p_] * crf(m.interest_rate, m.life_years[g]) for (g,p_) in m.H2_BLD_YRS_FOR_GEN_PERIOD)
             + sum(m.BuildH2Gen[g, z, p_] * m.fixed_cost_per_kgh_year[g, p_] for (g,p_) in m.H2_BLD_YRS_FOR_GEN_PERIOD)
-            + m.CompressorCapacityKgPerHour[z, p] * (
+            + m.BuildCompressorKgPerHour[z, p] * (
                 m.hydrogen_compressor_capital_cost_per_kg_per_hour[p] * crf(m.interest_rate, m.hydrogen_compressor_life_years)
                 + m.hydrogen_compressor_fixed_cost_per_kg_hour_year[p])
-            + sum(m.H2StorageCapacityKg[s, z, p] * (
+            + sum(m.BuildH2StorageKg[s, z, p] * (
                 m.h2_storage_capital_cost_per_kg[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s]))
-            + m.H2StorageCapacityKgPerHour[s, z, p] * (
+            + m.BuildH2StorageKgPower[s, z, p] * (
                 m.h2_storage_capital_cost_per_kg_per_hour[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s])) for s in m.H2_STORAGE_PROJECTS)
-            + m.FuelCellCapacityMW[z, p] * (
+            + m.BuildFuelCellMW[z, p] * (
                 m.hydrogen_fuel_cell_capital_cost_per_mw[p] * crf(m.interest_rate, m.hydrogen_fuel_cell_life_years)
                 + m.hydrogen_fuel_cell_fixed_cost_per_mw_year[p])
             for z in m.LOAD_ZONES
@@ -668,7 +659,6 @@ def define_components(m):
 
     
     # Need to figure out to mesh this code with how I have define the different generation options above. Maybe I should generalize the code?
-
     # Incorporate the effect of the production tax credit and investment tax credit for hydrogen_projects
     
     m.h2_credit_years = Set(
@@ -698,7 +688,7 @@ def define_components(m):
         initialize=lambda m, g, period: set(
             bld_yr
             for bld_yr in m.H2_BLD_YRS_FOR_GEN_PERIOD[g, period]
-            if 2025 <= bld_yr < 2035 and period < 2040 #projects built in 2030 would be able to receive the credit in 2040, I think? Check this later
+            if 2025 <= bld_yr <= 2035 and period <= 2040 #projects built in 2030 would be able to receive the credit in 2040, I think? Check this later. Yes!
         ),
     )
     # Calculate the total eligible PTC capacity per period
@@ -733,7 +723,7 @@ def define_components(m):
             -m.H2PTC[g, t] * m.h2_ptc_value[m.tp_period[t], g]
             for g in m.HYDROGEN_GEN
             if g in set([item[1] for item in m.h2_credit_years.data()])
-            and m.tp_period[t] < 2040
+            and m.tp_period[t] <= 2045
         ),
     )
     m.Cost_Components_Per_TP.append("H2_PTC_per_tp")
