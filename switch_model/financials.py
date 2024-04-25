@@ -369,7 +369,7 @@ def post_solve(instance, outdir):
     # Overall electricity costs
     normalized_dat = [
         {
-        	"PERIOD": p,
+        	"PERIODS": p,
         	"SystemCostPerPeriod_NPV": value(m.SystemCostPerPeriod[p]),
         	"SystemCostPerPeriod_Real": value(
         	    m.SystemCostPerPeriod[p] / m.bring_annual_costs_to_base_year[p]
@@ -384,7 +384,7 @@ def post_solve(instance, outdir):
         } for p in m.PERIODS
     ]
     df = pd.DataFrame(normalized_dat)
-    df.set_index(["PERIOD"], inplace=True)
+    df.set_index(["PERIODS"], inplace=True)
     df.to_csv(os.path.join(outdir, "electricity_cost.csv"))
     # Itemized annual costs
     annualized_costs = [
