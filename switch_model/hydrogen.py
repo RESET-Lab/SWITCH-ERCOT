@@ -175,11 +175,16 @@ def define_components(m):
     #System-wide constraint
     #I wonder if there is a way to calculate curtailed electricity and use that for the constraint instead?
 
-    #Hourly matching
-    m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.TIMEPOINTS, rule=lambda m, t:
-        sum(m.ConsumeElecMW[z,t] for z in m.LOAD_ZONES) <=
-        sum(m.DispatchGen[g, tp] for (g, tp) in m.GEN_TPS if g in m.VARIABLE_GENS and tp==t))
+    #Hourly matching, without geographical matching or additionality
+    #m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.TIMEPOINTS, rule=lambda m, t:
+    #    sum(m.ConsumeElecMW[z,t] for z in m.LOAD_ZONES) <=
+    #    sum(m.DispatchGen[g, tp] for (g, tp) in m.GEN_TPS if g in m.VARIABLE_GENS and tp==t))
     
+    #Hourly matching, with geographical matching and additionality
+    m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
+        m.ConsumeElecMW[z,t] <= sum(m.DispatchGen[g, t] for g in m.VARIABLE_GENS_IN_ZONE[z] if (g,m.tp_period[t]) in m.NEW_GEN_BLD_YRS))
+    
+
     #Annual matching
     #m.Electrolysis_Electricity_Consumption_Limit = Constraint(m.PERIODS, rule=lambda m, p:
     #    sum(m.ConsumeElecMW[z,t] for (z in m.LOAD_ZONES) and (t in m.TPS_IN_PERIOD[p])) <=
@@ -197,7 +202,7 @@ def define_components(m):
 
     m.H2DispatchEmissions = Var(m.HYDROGEN_GEN, m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
     m.H2EmissionsCalculation = Constraint(m.HYDROGEN_GEN, m.LOAD_ZONES, m.TIMEPOINTS, rule = lambda m, g, z, t:
-        m.H2DispatchEmissions[g, z, t] == m.DispatchH2Gen[g, z, t]*m.co2_per_kg[g]/1000) #divide by 1000 to convert to tonnes
+        m.H2DispatchEmissions[g, z, t] == m.DispatchH2Gen[g, z, t]*m.co2_per_kg[g]) 
     
     m.H2AnnualEmissions = Expression(m.PERIODS,
         rule=lambda m, period: sum(
