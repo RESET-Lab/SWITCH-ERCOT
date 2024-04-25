@@ -24,30 +24,20 @@ def define_components(mod):
 
     #Input parameters
     mod.TECHS = Set()
+    mod.is_storage = Param(mod.TECHS, within=Boolean)
     mod.is_mga = Param(mod.TECHS, within=Boolean)
     mod.mga_tech = Set(initialize = mod.TECHS, filter = lambda m, g: m.is_mga[g])
+    mod.SystemCostNPVPeriod = Param(mod.PERIODS)
+    mod.SystemCostRealPeriod = Param(mod.PERIODS)
     #mod.obj_min = Param(mod.TECH_TYPE, within=Boolean)
     mod.mga_slack = Param() #Provided in the script and then added to a csv input file
     mod.opt_cost = Param()  #Script pulls this number from the output of the first run and copies it to a csv input file
     mod.penalty_multiplier = Param()
-    mod.penalty_cost = Param(default=1000000000)
+    #mod.penalty_cost = Param(default=1000000000)
 
     mod.MGA_TPS = Set(dimen=2, initialize = lambda m: ((g, t) for g in m.mga_tech for t in m.TIMEPOINTS))
-    #mod.MGA_TPS = Set(dimen=2, initialize = mod.GEN_TPS, filter = lambda m, g, t: m.is_mga[m.gen_tech[g]])
-    #Constraints:
-    def Mga_Upper_Cost_rule(m):
-        slack_bound = (1+m.mga_slack)*m.opt_cost
-        rule = inequality(m.opt_cost, m.SystemCost, slack_bound)
-        return rule
-        #return (None, m.SystemCost, slack_bound)
+    #mod.MGA_ZONES = Set(dimen=2, initialize = lambda m: ((g, t) for g in m.mga_tech for t in m.TIMEPOINTS))
 
-    #def Mga_Lower_Cost_rule(m):
-    #    rule = inequality(m.opt_cost, m.SystemCost, None)
-    #    return rule
-
-    #Constraints
-    #mod.Mga_Lower_Cost = Constraint(rule=Mga_Lower_Cost_rule)
-    mod.Mga_Upper_Cost = Constraint(rule=Mga_Upper_Cost_rule)
 
 def define_dynamic_components(mod):
 
@@ -59,6 +49,19 @@ def define_dynamic_components(mod):
     #mod.DispatchByTech = Expression(mod.gen_tech, mod.TIMEPOINTS,
     #                                rule = lambda m, gen, t: sum(m.DispatchGen[g, t] for g in m.GENERATION_PROJECTS if m.gen_tech[g] == gen)
     #)
+    def Mga_Cost_rule(m, p):
+        slack_bound = (1+m.mga_slack)*m.SystemCostNPVPeriod[p]
+        rule = inequality(m.SystemCostNPVPeriod[p], m.SystemCostPerPeriod[p], slack_bound)
+        return rule
+    #)
+    #def Mga_Upper_Cost_rule(m):
+    #    slack_bound = (1+m.mga_slack)*sum(m.SystemCostRealPeriod[p] for p in m.PERIODS)
+    #    rule = inequality(sum(m.SystemCostRealPeriod[p] for p in m.PERIODS), sum(m.SystemCostPerPeriod[p]/m.bring_annual_costs_to_base_year[p]for p in m.PERIODS), slack_bound)
+     #   return rule
+    #Constraints
+    #mod.Mga_Upper_Cost = Constraint(rule=Mga_Upper_Cost_rule)
+    mod.Mga_Cost = Constraint(mod.PERIODS, rule=Mga_Cost_rule)
+
     def required_capacity(m, g, t):
         cf_sum = 0
         length = 0
@@ -138,17 +141,26 @@ def define_dynamic_components(mod):
         rule = lambda m, g, t: inequality(None, m.ExcessCapacity[g, t], m.MaxExcessCapacity)
     )
 
-    mod.ExcessCapacityCost = Expression(mod.TIMEPOINTS, rule = lambda m, t:
-                                        (sum(m.GenCapacityInTP[g, t] for g in m.GENERATION_PROJECTS if (m.gen_tech[g] in m.mga_tech and (g,t) in m.GEN_TPS)) - sum(m.RequiredCapacityByTech[g, t] for g in m.mga_tech))*m.penalty_cost)
+    #mod.ExcessCapacityCost = Expression(mod.TIMEPOINTS, rule = lambda m, t:
+    #                                    (sum(m.GenCapacityInTP[g, t] for g in m.GENERATION_PROJECTS if (m.gen_tech[g] in m.mga_tech and (g,t) in m.GEN_TPS)) - sum(m.RequiredCapacityByTech[g, t] for g in m.mga_tech))*m.penalty_cost)
                                         #sum(m.ExcessCapacity[g,t] for g in m.mga_tech)*m.penalty_cost)
     
     #mod.Cost_Components_Per_TP.append('ExcessCapacityCost')
     #mod.Test_Penalty = Constraint(
     #    rule = lambda m: m.MaxExcessCapacity >= 10.0
     #)
+    def MinTech_calc(m):
+        total = 0
+        for g in m.mga_tech:
+            if m.is_storage[g]:
+                total += sum( m.BuildGen[n, p] + m.BuildStorageEnergy[n,p] for n,p in m.GEN_BLD_YRS if m.gen_tech[n] == g )
+            else:
+                total += sum( m.BuildGen[n, p] for n,p in m.GEN_BLD_YRS if m.gen_tech[n] == g )
+        return total
+
 
     mod.MinTech = Expression(
-        rule = lambda m: sum( m.BuildGen[n, p] for n,p in m.GEN_BLD_YRS if m.gen_tech[n] in m.mga_tech )
+        rule = MinTech_calc #lambda m: sum( m.BuildGen[n, p] for n,p in m.GEN_BLD_YRS if m.gen_tech[n] in m.mga_tech )
     )
     
     if mod.options.obj_min:
@@ -178,13 +190,20 @@ def load_inputs(mod, switch_data, inputs_dir):
         autoselect=True,
         optional_params=['penalty_multiplier'],
         param=(mod.mga_slack, mod.opt_cost, mod.penalty_multiplier))
-
+    
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, 'mga_costs.csv'),
+        optional=True,
+        autoselect=True,
+        index=mod.PERIODS,
+        param=(mod.SystemCostNPVPeriod))
+    
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, 'mga_tech.csv'),
         optional=True,
         autoselect=True,
         index=mod.TECHS,
-        param=(mod.is_mga))
+        param=(mod.is_storage, mod.is_mga))
 
 def post_solve(instance, outdir):
     """
