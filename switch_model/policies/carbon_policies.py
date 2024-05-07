@@ -59,8 +59,8 @@ def define_dynamic_components(model):
         rule=lambda m, p:
             Constraint.Skip if m.carbon_cap_tco2_per_yr[p] == float('inf')
             #else (m.AnnualEmissions[p]+m.H2AnnualEmissions[p]) <= m.carbon_cap_tco2_per_yr[p],
-            #else (m.AnnualEmissions[p]) <= m.carbon_cap_tco2_per_yr[p],
-            else (sum(getattr(m, component)[p] for component in m.System_Emissions) <= m.carbon_cap_tco2_per_yr[p]),
+            else (m.AnnualEmissions[p]) <= m.carbon_cap_tco2_per_yr[p],
+            #else (sum(getattr(m, component)[p] for component in m.System_Emissions) <= m.carbon_cap_tco2_per_yr[p]),
         doc=("Enforces the carbon cap for generation-related emissions."))
 
 
