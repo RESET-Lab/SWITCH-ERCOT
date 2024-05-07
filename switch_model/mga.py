@@ -215,12 +215,12 @@ def post_solve(instance, outdir):
     import switch_model.reporting as reporting
 
     #Misc output table I can use for debugging
-    reporting.write_table(
-        instance, instance.mga_tech, instance.TIMEPOINTS,
-        output_file=os.path.join(outdir, "excess_cap.csv"),
-        headings=("gen", 'tp', "required_cap", 'capacity_in_tp', 'excess_capacity', "max"),
-        values=lambda m, g, tp: (
-            g, tp, m.RequiredCapacityByTech[g, tp], m.test[g,tp], m.ExcessCapacity[g,tp], m.MaxExcessCapacity
-        ))
+    #reporting.write_table(
+    #    instance, instance.mga_tech, instance.TIMEPOINTS,
+    #    output_file=os.path.join(outdir, "excess_cap.csv"),
+    #    headings=("gen", 'tp', "required_cap", 'capacity_in_tp', 'excess_capacity', "max"),
+    #    values=lambda m, g, tp: (
+    #        g, tp, m.RequiredCapacityByTech[g, tp], m.test[g,tp], m.ExcessCapacity[g,tp], m.MaxExcessCapacity
+    #    ))
 
     #instance.OverBuild_Penalty.display()

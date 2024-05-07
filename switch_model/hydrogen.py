@@ -240,7 +240,7 @@ def define_components(m):
     m.h2_storage_fixed_om_per_kg = Param(m.H2_STORAGE_BUILD_YRS) #energy investment
     m.h2_storage_fixed_om_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
 
-    m.h2_storage_minimum_size_kg = Param(m.H2_STORAGE_PROJECTS, default=0.0)
+    m.h2_storage_minimum_size_kg = Param(m.H2_STORAGE_PROJECTS, within=NonNegativeReals, default=0.0)
     m.h2_storage_life_years = Param(m.H2_STORAGE_PROJECTS, default=20)
     m.BuildH2StorageKg = Var(m.H2_STORAGE_BUILD_YRS_ZONES, within=NonNegativeReals) # in kg
     m.BuildH2StorageKgPower = Var(m.H2_STORAGE_BUILD_YRS_ZONES, within=NonNegativeReals) # in kg
@@ -252,6 +252,17 @@ def define_components(m):
         if ((p - p_) < m.h2_storage_life_years[s])))
     #m.StoreHydrogenKgPerHour = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
     #    m.tp_duration_hrs[tp] * m.CompressHydrogenKgPerHour[z, tp])
+
+    # Defining minimum build capacities
+    m.H2BuildMinStorageCap = Var(
+        m.H2_STORAGE_BUILD_YRS_ZONES,
+        within=Binary)
+    m.Enforce_Min_Build_Lower_H2 = Constraint(
+        m.H2_STORAGE_BUILD_YRS_ZONES,
+        rule=lambda m, g, z, p: (
+            m.H2BuildMinStorageCap[g, z, p] * m.gen_min_build_capacity[g]
+            <= m.BuildH2StorageKg[g, z, p]))
+
 
     m.StoreHydrogenKgPerHour = Var(m.H2_STORAGE_TPS, within=NonNegativeReals)
     m.WithdrawHydrogenKgPerHour = Var(m.H2_STORAGE_TPS, within=NonNegativeReals)
