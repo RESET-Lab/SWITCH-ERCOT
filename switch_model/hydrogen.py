@@ -265,7 +265,7 @@ def define_components(m):
     m.Enforce_Min_Build_Lower_H2 = Constraint(
         m.H2_STORAGE_BUILD_YRS_ZONES,
         rule=lambda m, g, z, p: (
-            m.H2BuildMinStorageCap[g, z, p] * m.gen_min_build_capacity[g]
+            m.H2BuildMinStorageCap[g, z, p] * m.h2_storage_minimum_size_kg[g]
             <= m.BuildH2StorageKg[g, z, p]))
 
 
