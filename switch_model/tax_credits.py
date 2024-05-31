@@ -28,6 +28,11 @@ def define_components(m):
         domain=NonNegativeReals#,
         #doc="Investment Tax Credit (ITC) for given technology by period. Data in $/MW",
     )
+    m.carbon_capture_credit = Param(
+        m.credit_years,
+        default=0,
+        domain=NonNegativeReals
+    )
 
     # Create a set that has build capacity constrained by year (both caps of the PTC).
     # The two caps of the PTC are that the generator must be built prior to 2035 in
@@ -40,7 +45,7 @@ def define_components(m):
         initialize=lambda m, g, period: set(
             bld_yr
             for bld_yr in m.BLD_YRS_FOR_GEN_PERIOD[g, period]
-            if 2025 <= bld_yr < 2035 and period < 2040 #projects built in 2030 would be able to receive the credit in 2040, I think? Check this later
+            if 2025 <= bld_yr < 2035 and period < 2040 
         ),
     )
     # Calculate the total eligible PTC capacity per period
@@ -93,6 +98,56 @@ def define_components(m):
         )
     m.Cost_Components_Per_Period.append('ITC_per_period')
 
+    # Calculate Carbon Capture tax credit
+    m.ccs_eligible_yrs = Set(
+        m.GENERATION_PROJECTS,
+        m.PERIODS,
+        ordered=False,
+        initialize=lambda m, g, period: set(
+            bld_yr
+            for bld_yr in m.BLD_YRS_FOR_GEN_PERIOD[g, period]
+            if 2025 <= bld_yr < 2035 and period < 2040 
+        ),
+    )
+    # Calculate the total eligible PTC capacity per period
+    m.CCS_Capacity = Expression(
+        m.GENERATION_PROJECTS,
+        m.PERIODS,
+        rule=lambda m, g, period: sum(
+            m.BuildGen[g, bld_yr] for bld_yr in m.ccs_eligible_yrs[g, period]
+        ),
+    )
+
+    # Same as PTC_Capacity but per timepoint
+    m.CCS_CapacityInTP = Expression(
+        m.GEN_TPS, rule=lambda m, g, t: m.CCS_Capacity[g, m.tp_period[t]]
+    )
+
+    # Create PTC variable that will either return the PTC Capacity or the DispatchGen
+    # whichever is minimum.
+    m.CCS_credit = Var(m.GEN_TPS, domain=NonNegativeReals)
+
+    m.CCS_credit_lower_bound = Constraint(
+        m.GEN_TPS, rule=lambda m, g, t: m.CCS_credit[g, t] <= m.CCS_CapacityInTP[g, t]
+    )
+    m.CCS_credit_upper_bound = Constraint(
+        m.GEN_TPS, rule=lambda m, g, t: m.CCS_credit[g, t] <= m.DispatchGen[g, t]
+    )
+
+    # Calculate PTC
+    m.CCS_credit_per_tp = Expression(
+        m.TIMEPOINTS,
+        rule=lambda m, t: sum(
+            -m.CCS_credit[g, t] * m.carbon_capture_credit[m.tp_period[t], m.gen_tech[g]] 
+                * sum(m.gen_ccs_capture_efficiency[g] * m.GenFuelUseRate[g, t, f] * m.f_co2_intensity[f] for f in m.FUELS_FOR_GEN[g])
+            for g in m.GENS_IN_PERIOD[m.tp_period[t]]
+            if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
+            and m.tp_period[t] < 2040
+            and g in m.FUEL_BASED_GENS
+        ),
+    )
+    m.Cost_Components_Per_TP.append("CCS_credit_per_tp")
+
 def load_inputs(mod, switch_data, inputs_dir):
 
     #Input file has values for the PTC and the percent of the PTC each project will receive when built in a given period
@@ -100,7 +155,7 @@ def load_inputs(mod, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, 'tax_credits.csv'),
         autoselect=True,
         index=mod.credit_years,
-        param=(mod.ptc_value, mod.itc_value))
+        param=(mod.ptc_value, mod.itc_value, mod.carbon_capture_credit))
 
 # Exported files:
 #         PTC.csv - Total ptc value aggregated per period
