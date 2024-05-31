@@ -138,8 +138,8 @@ def define_components(m):
     m.CCS_credit_per_tp = Expression(
         m.TIMEPOINTS,
         rule=lambda m, t: sum(
-            -m.CCS_credit[g, t] * m.carbon_capture_credit[m.tp_period[t], m.gen_tech[g]] 
-                * sum(m.gen_ccs_capture_efficiency[g] * m.GenFuelUseRate[g, t, f] * m.f_co2_intensity[f] for f in m.FUELS_FOR_GEN[g])
+            -m.CCS_credit[g, t] * m.gen_full_load_heat_rate[g] * m.carbon_capture_credit[m.tp_period[t], m.gen_tech[g]] 
+                * sum(m.gen_ccs_capture_efficiency[g] * m.f_co2_intensity[f] for f in m.FUELS_FOR_GEN[g])
             for g in m.GENS_IN_PERIOD[m.tp_period[t]]
             if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
             and m.tp_period[t] < 2040
