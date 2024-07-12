@@ -58,8 +58,14 @@ def define_components(m):
     )
 
     # Same as PTC_Capacity but per timepoint
+    # PTC capacity needs to be scaled down by capacity factor since it is intended up be an upper bound of generation
+    #m.PTC_CapacityInTP = Expression(
+    #    m.GEN_TPS, rule=lambda m, g, t: m.PTC_Capacity[g, m.tp_period[t]]
+    #)
     m.PTC_CapacityInTP = Expression(
-        m.GEN_TPS, rule=lambda m, g, t: m.PTC_Capacity[g, m.tp_period[t]]
+        m.GEN_TPS, rule=lambda m, g, t: sum(
+            m.BuildGen[g, bld_yr] for bld_yr in m.ptc_eligible_yrs[g, m.tp_period[t]]
+        )*m.gen_max_capacity_factor[g,t]
     )
 
     # Create PTC variable that will either return the PTC Capacity or the DispatchGen
@@ -106,7 +112,7 @@ def define_components(m):
         initialize=lambda m, g, period: set(
             bld_yr
             for bld_yr in m.BLD_YRS_FOR_GEN_PERIOD[g, period]
-            if 2025 <= bld_yr < 2035 and period < 2040 #(period-bld_yr) < 12 
+            if 2025 <= bld_yr < 2035 and (period-bld_yr) < 12 
         ),
     )
     # Calculate the total eligible PTC capacity per period
