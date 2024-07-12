@@ -62,10 +62,16 @@ def define_components(m):
     #m.PTC_CapacityInTP = Expression(
     #    m.GEN_TPS, rule=lambda m, g, t: m.PTC_Capacity[g, m.tp_period[t]]
     #)
+    def PTC_CapacityInTP_rule(m, g, t):
+        if g in m.VARIABLE_GEN:
+            return sum(
+                m.BuildGen[g, bld_yr] for bld_yr in m.ptc_eligible_yrs[g, m.tp_period[t]]
+            )*m.gen_max_capacity_factor[g,t]
+        else:
+            return 0.0
+
     m.PTC_CapacityInTP = Expression(
-        m.GEN_TPS, rule=lambda m, g, t: sum(
-            m.BuildGen[g, bld_yr] for bld_yr in m.ptc_eligible_yrs[g, m.tp_period[t]]
-        )*m.gen_max_capacity_factor[g,t]
+        m.GEN_TPS, rule=PTC_CapacityInTP_rule
     )
 
     # Create PTC variable that will either return the PTC Capacity or the DispatchGen
