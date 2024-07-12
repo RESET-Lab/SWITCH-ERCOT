@@ -63,7 +63,7 @@ def define_components(m):
     #    m.GEN_TPS, rule=lambda m, g, t: m.PTC_Capacity[g, m.tp_period[t]]
     #)
     def PTC_CapacityInTP_rule(m, g, t):
-        if g in m.VARIABLE_GEN:
+        if g in m.VARIABLE_GENS:
             return sum(
                 m.BuildGen[g, bld_yr] for bld_yr in m.ptc_eligible_yrs[g, m.tp_period[t]]
             )*m.gen_max_capacity_factor[g,t]
