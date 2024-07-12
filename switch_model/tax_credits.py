@@ -142,7 +142,7 @@ def define_components(m):
                 * sum(m.gen_ccs_capture_efficiency[g] * m.f_co2_intensity[f] for f in m.FUELS_FOR_GEN[g])
             for g in m.GENS_IN_PERIOD[m.tp_period[t]]
             if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
-            and m.tp_period[t] < 2040
+            and m.tp_period[t] < 2043
             and g in m.FUEL_BASED_GENS
         ),
     )
