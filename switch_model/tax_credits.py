@@ -45,7 +45,7 @@ def define_components(m):
         initialize=lambda m, g, period: set(
             bld_yr
             for bld_yr in m.BLD_YRS_FOR_GEN_PERIOD[g, period]
-            if 2025 <= bld_yr < 2035 and period < 2040 
+            if 2025 <= bld_yr < 2035 and period <= 2040 
         ),
     )
     # Calculate the total eligible PTC capacity per period
@@ -106,7 +106,7 @@ def define_components(m):
         initialize=lambda m, g, period: set(
             bld_yr
             for bld_yr in m.BLD_YRS_FOR_GEN_PERIOD[g, period]
-            if 2025 <= bld_yr < 2035 and period < 2040 
+            if 2025 <= bld_yr < 2035 and period <= 2040 
         ),
     )
     # Calculate the total eligible PTC capacity per period
