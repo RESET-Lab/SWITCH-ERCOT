@@ -692,6 +692,12 @@ def define_components(m):
         domain=NonNegativeReals#,
         #doc="Investment Tax Credit (ITC) for given technology by period. Data in $/MW",
     )
+    m.h2_carbon_capture_credit = Param(
+        m.h2_credit_years,
+        default=0,
+        domain=NonNegativeReals
+    )
+
 
     # Create a set that has build capacity constrained by year (both caps of the PTC).
     # The two caps of the PTC are that the generator must be built prior to 2035 in
@@ -756,6 +762,55 @@ def define_components(m):
     #)
     #m.Cost_Components_Per_Period.append('ITC_per_period')
 
+    # Calculate Carbon Capture tax credit
+    m.h2_ccs_eligible_yrs = Set(
+        m.HYDROGEN_GEN,
+        m.PERIODS,
+        ordered=False,
+        initialize=lambda m, g, period: set(
+            bld_yr
+            for bld_yr in m.H2_BLD_YRS_FOR_GEN_PERIOD[g, period]
+            if 2025 <= bld_yr < 2035 and (period-bld_yr) < 12 
+        ),
+    )
+    # Calculate the total eligible PTC capacity per period
+    m.H2_CCS_Capacity = Expression(
+        m.HYDROGEN_GEN,
+        m.PERIODS,
+        rule=lambda m, g, period: sum(
+            sum(m.BuildH2Gen[g, z, bld_yr] for z in m.LOAD_ZONES) for bld_yr in m.h2_ccs_eligible_yrs[g, period]
+        ),
+    )
+
+    # Same as PTC_Capacity but per timepoint
+    m.H2_CCS_CapacityInTP = Expression(
+        m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.H2_CCS_Capacity[g, m.tp_period[t]]
+    )
+
+    # Create PTC variable that will either return the PTC Capacity or the DispatchGen
+    # whichever is minimum.
+    m.H2_CCS_credit = Var(m.HYDROGEN_GEN, m.TIMEPOINTS, domain=NonNegativeReals)
+
+    m.H2_CCS_credit_lower_bound = Constraint(
+        m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.H2_CCS_credit[g, t] <= m.H2_CCS_CapacityInTP[g, t]
+    )
+    m.H2_CCS_credit_upper_bound = Constraint(
+        m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.CCS_credit[g, t] <= sum(m.DispatchH2Gen[g, z, t] for z in m.LOAD_ZONES)
+    )
+
+    # Calculate 45Q PTC
+    #Note that this calculation uses an estimated equivalent $/kg value for the 45Q credit based on potential capture rates for SMR, not a precise calculation based
+    #on captured carbon. May update that later.
+    m.H2_CCS_credit_per_tp = Expression(
+        m.TIMEPOINTS,
+        rule=lambda m, t: sum(
+            -m.H2_CCS_credit[g, t] * m.h2_carbon_capture_credit[m.tp_period[t], g]
+            for g in m.HYDROGEN_GEN
+            if g in set([item[1] for item in m.h2_credit_years.data()])
+            and m.tp_period[t] < 2045
+        ),
+    )
+    m.Cost_Components_Per_TP.append("H2_CCS_credit_per_tp")
 
 def load_inputs(m, switch_data, inputs_dir):
 
