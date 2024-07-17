@@ -795,7 +795,7 @@ def define_components(m):
         m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.H2_CCS_credit[g, t] <= m.H2_CCS_CapacityInTP[g, t]
     )
     m.H2_CCS_credit_upper_bound = Constraint(
-        m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.CCS_credit[g, t] <= sum(m.DispatchH2Gen[g, z, t] for z in m.LOAD_ZONES)
+        m.HYDROGEN_GEN, m.TIMEPOINTS, rule=lambda m, g, t: m.H2_CCS_credit[g, t] <= sum(m.DispatchH2Gen[g, z, t] for z in m.LOAD_ZONES)
     )
 
     # Calculate 45Q PTC
