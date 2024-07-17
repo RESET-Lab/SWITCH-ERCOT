@@ -941,7 +941,7 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, 'h2_tax_credits.csv'),
         autoselect=True,
         index=m.h2_credit_years,
-        param=(m.h2_ptc_value, m.h2_itc_value))
+        param=(m.h2_ptc_value, m.h2_itc_value, m.h2_carbon_capture_credit))
 
 
 def post_solve(instance, outdir):
