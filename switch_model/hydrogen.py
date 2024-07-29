@@ -5,13 +5,6 @@ from switch_model.financials import capital_recovery_factor as crf
 
 """
 TO-DO:
-    - For SWITCH ERCOT:
-        - Convert those tab files to csvs since they have the correct build restrictions
-        - I am concerned that the build costs are the same for technologies across all load zones. Is that realistic and wouldnt that just incentivize SWITCH
-        to build directly in a load zone and not rely on transmission?
-            - Maybe there are other constraints I am not aware of that influence this too
-    - add in reserves
-    - Add in pre-existing infrastructure (grey hydrogen capacity?)
     - check cost functions (Use data sources from Javier's work to start for cost data, then go from there)
         - Perhaps allow costs to vary by period to account for learning rates and stuff? I think I remember SWITCH being able to do that?
         - The actual cost calculations in SWITCH make complete, but I will need to update and verify the inputs of course
@@ -45,22 +38,6 @@ TO-DO:
         - Ramping rates?
     - ELECTROLYSIS AND FUEL CELLS:
         - Minimum generation rates?
-        - Add in SMR (start with no CCS, but add in CCS option eventually)
-            - This one is trickier I think, since it will be an issue of fuel consumption as well. Will pull numbers from Bodal for now I think
-            - SWITCH fuel consumption calculation: Fuel consumed by generator g in zone z at timepoint t = DispatchGen[g, tp]*gen_full_load_heat_rate[g]
-                - So I can setup the build and dispatch decisions of SMR the same way I did the electrolyzers
-                - But I need to factor in the costs and emission associated with the natural gas
-                - AND I need to determine how to best implement the CCS part of it
-            - Inputs needed:
-                - Capital cost
-                - Fixed O&M
-                - Variable O&M
-                - Lifetime
-                - "Heat rate" (Ratio of incoming thermal energy from fuel (MMBTU) to the amount of hydrogen produced (kg))
-                - Define fuel as natural gas specifically (input or internal definition?)
-                - Carbon emissions
-                - CCS enabled? (T/F)
-                    - Or would I make this a decision variable perhaps?
         - Tie electrolysis production to energy produced by renewables
             - Sum of all the electrolysis production must be less than the sum of all the production from variable generation?
                 - Done, but still need to figure out how to deal with stored renewables
@@ -74,8 +51,6 @@ TO-DO:
                 - Difficult to know for sure when the fuel cells are not being used ever in these tests really
             -Be careful to avoid double counting any hydrogen used.
                 - In fact you may want to take the hydrogen used for fuel cells out of the mass balance - why would I do that?
-    - Load profile for hydrogen (transportation?)
-        - Would make sense to include industry demand for hydrogen, since that is what most hydrogen is being used for in Texas currently
     - Account for geologic storage
     - Should I split these things into different modules? I think eventually that would be wise but for now we can consolidate
 
@@ -722,18 +697,6 @@ def define_components(m):
         ),
     )
     m.Cost_Components_Per_TP.append("H2_PTC_per_tp")
-
-    # Calculate ITC
-    #m.ITC_per_period = Expression(
-    #    m.PERIODS,
-    #    rule = lambda m, p: sum(
-    #        -m.h2_itc_value[p, m.gen_tech[g]] * m.GenCapitalCosts[g,p]
-    #        for (g, p) in m.NEW_GEN_BLD_YRS
-    #        if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
-    #        and p < 2040
-    #    )
-    #)
-    #m.Cost_Components_Per_Period.append('ITC_per_period')
 
     # Calculate Carbon Capture tax credit
     m.h2_ccs_eligible_yrs = Set(
