@@ -590,29 +590,6 @@ def define_components(m):
     )
     m.Cost_Components_Per_Period.append('PtxFixedCosts')
 
-    """
-    # compressor details
-    """
-    m.hydrogen_compressor_capital_cost_per_kg_per_hour = Param(m.PERIODS)
-    m.hydrogen_compressor_fixed_cost_per_kg_hour_year = Param(m.PERIODS, default=0.0)
-    m.hydrogen_compressor_variable_cost_per_kg = Param(m.PERIODS, default=0.0)
-    m.hydrogen_compressor_mwh_per_kg = Param()
-    m.hydrogen_compressor_life_years = Param()
-
-    m.BuildCompressorKgPerHour = Var(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals)  # capacity to build, measured in kg/hour of throughput
-    m.CompressorCapacityKgPerHour = Expression(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-        sum(m.BuildCompressorKgPerHour[z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
-        if ((p - p_) < m.hydrogen_compressor_life_years)))
-
-    #Can expand these two equations to account for the compression used for other technologies like pipelines
-    m.Max_Dispatch_Compressor = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS) <= m.CompressorCapacityKgPerHour[z, m.tp_period[t]])
-
-    m.CompressHydrogenMW = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS) * m.hydrogen_compressor_mwh_per_kg
-    )
-    m.Zone_Power_Withdrawals.append('CompressHydrogenMW')
-
     # An expression to summarize annual costs for the objective
     # function. Units should be total annual future costs in $base_year
     # real dollars. The objective function will convert these to
@@ -625,7 +602,6 @@ def define_components(m):
         sum(
             sum(m.DispatchH2Gen[g,z,t]*m.variable_cost_per_kg[g, m.tp_period[t]] for g in m.HYDROGEN_GEN)
             + sum(m.H2FuelUseRate[g, z, t] * m.fuel_cost[z, m.h2_gen_fuel[g], m.tp_period[t]] for g in m.NG_GEN)
-            + sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS) * m.hydrogen_compressor_variable_cost_per_kg[m.tp_period[t]]
             + m.DispatchFuelCellMW[z, t] * m.hydrogen_fuel_cell_variable_cost_per_mwh[m.tp_period[t]]
             for z in m.LOAD_ZONES
         )
@@ -657,9 +633,6 @@ def define_components(m):
         sum(
             sum(m.BuildH2Gen[g, z, p_] * m.capital_cost_per_kgh[g, p_] * crf(m.interest_rate, m.life_years[g]) for (g,p_) in m.H2_BLD_YRS_FOR_GEN_PERIOD)
             + sum(m.BuildH2Gen[g, z, p_] * m.fixed_cost_per_kgh_year[g, p_] for (g,p_) in m.H2_BLD_YRS_FOR_GEN_PERIOD)
-            + m.BuildCompressorKgPerHour[z, p] * (
-                m.hydrogen_compressor_capital_cost_per_kg_per_hour[p] * crf(m.interest_rate, m.hydrogen_compressor_life_years)
-                + m.hydrogen_compressor_fixed_cost_per_kg_hour_year[p])
             + sum(m.BuildH2StorageKg[s, z, p] * (
                 m.h2_storage_capital_cost_per_kg[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s]))
             + m.BuildH2StorageKgPower[s, z, p] * (
@@ -843,9 +816,6 @@ def load_inputs(m, switch_data, inputs_dir):
             m.hydrogen_fuel_cell_capital_cost_per_mw,
             m.hydrogen_fuel_cell_fixed_cost_per_mw_year,
             m.hydrogen_fuel_cell_variable_cost_per_mwh,
-            m.hydrogen_compressor_capital_cost_per_kg_per_hour,
-            m.hydrogen_compressor_fixed_cost_per_kg_hour_year,
-            m.hydrogen_compressor_variable_cost_per_kg,
         )
     )
     switch_data.load_aug(
@@ -868,8 +838,6 @@ def load_inputs(m, switch_data, inputs_dir):
         param=(
             m.hydrogen_fuel_cell_life_years,
             m.hydrogen_fuel_cell_mwh_per_kg,
-            m.hydrogen_compressor_life_years,
-            m.hydrogen_compressor_mwh_per_kg,
         )
     )
 
