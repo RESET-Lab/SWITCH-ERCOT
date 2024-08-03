@@ -787,7 +787,7 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, 'hydrogen_projects_costs.csv'),
         optional=False,
         auto_select=True,
-        index = H2_CONV_PERIODS,
+        index = m.H2_CONV_PERIODS,
         param=(
             m.hydrogen_conv_capital_cost_per_mw,
             m.hydrogen_conv_fixed_cost_per_mw_year,
