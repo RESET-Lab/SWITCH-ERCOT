@@ -577,7 +577,7 @@ def define_components(m):
         sum(
             sum(m.DispatchH2Gen[g,z,t]*m.variable_cost_per_kg[g, m.tp_period[t]] for g in m.HYDROGEN_GEN)
             + sum(m.H2FuelUseRate[g, z, t] * m.fuel_cost[z, m.h2_gen_fuel[g], m.tp_period[t]] for g in m.NG_GEN)
-            + m.DispatchFuelCellMW[z, t] * m.hydrogen_fuel_cell_variable_cost_per_mwh[m.tp_period[t]]
+            + sum(m.DispatchConverterMW[g, z, t] * m.hydrogen_conv_variable_cost_per_mwh[g, m.tp_period[t]] for g in m.H2_CONVERTERS)
             for z in m.LOAD_ZONES
         )
     )
