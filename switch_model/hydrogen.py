@@ -629,9 +629,9 @@ def define_components(m):
                 m.h2_storage_capital_cost_per_kg[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s]))
             + m.BuildH2StorageKgPower[s, z, p] * (
                 m.h2_storage_capital_cost_per_kg_per_hour[s, p] * crf(m.interest_rate, m.h2_storage_life_years[s])) for s in m.H2_STORAGE_PROJECTS)
-            + sum(m.BuildConverterMW[g, z, p] * (
-                m.hydrogen_conv_capital_cost_per_mw[g, p] * crf(m.interest_rate, m.hydrogen_conv_life_years[g])
-                + m.hydrogen_conv_fixed_cost_per_mw_year[g, p]) for g in m.H2_CONV_BLD_YRS_FOR_GEN_PERIOD)
+            + sum(m.BuildConverterMW[g, z, p_] * (
+                m.hydrogen_conv_capital_cost_per_mw[g, p_] * crf(m.interest_rate, m.hydrogen_conv_life_years[g])
+                + m.hydrogen_conv_fixed_cost_per_mw_year[g, p_]) for (g, p_) in m.H2_CONV_BLD_YRS_FOR_GEN_PERIOD)
             for z in m.LOAD_ZONES
         )
     )
