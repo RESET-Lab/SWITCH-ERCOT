@@ -214,7 +214,7 @@ def define_components(m):
         sum(m.DispatchConverterMW[g, z, t] / m.hydrogen_conv_mwh_per_kg[g] for g in m.H2_CONVERTERS)
     )
     m.ConverterZonalDispatch = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        sum(m.DispatchConverterMW[g, z, t] for g in m.H2_Converters))
+        sum(m.DispatchConverterMW[g, z, t] for g in m.H2_CONVERTERS))
     #m.Hydrogen_For_Fuel_Cells_Limit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m,z,t:
     #    m.ConsumeHydrogenKgPerHour[z,t] <= m.HydrogenStorageStateKg[z, m.tp_previous[t]])
     m.Hydrogen_Withdrawals.append('ConsumeHydrogenKgPerHour')
