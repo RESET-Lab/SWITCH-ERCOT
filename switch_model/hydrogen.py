@@ -206,7 +206,7 @@ def define_components(m):
     m.BuildConverterMW = Var(m.H2_CONV_BLD_YRS, within=NonNegativeReals)
     m.ConverterCapacityMW = Expression(m.H2_CONV_BLD_YRS, rule=lambda m, g, z, p:
         sum(m.BuildConverterMW[g, z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
-        if ((p - p_) < m.hydrogen_conv_life_years)))
+        if ((p - p_) < m.hydrogen_conv_life_years[g])))
     m.DispatchConverterMW = Var(m.H2_CONVERTERS, m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
     m.Max_Dispatch_Converter = Constraint(m.H2_CONVERTERS, m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, g, z, t:
         m.DispatchConverterMW[g, z, t] <= m.ConverterCapacityMW[g, z, m.tp_period[t]])
