@@ -324,16 +324,16 @@ def define_components(m):
 
     #going to try a slightly different way to track annual storage. If I constrained it such that the first and last timepoint of a period
     #must have a storagestate of 0, I think that might also solve this weird bug?
-    #m.Hydrogen_Conservation_of_Mass_Annual = Constraint(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-    #    m.HydrogenStorageStateKg[z, m.TPS_IN_PERIOD[p][1]] - m.HydrogenStorageStateKg[z, m.TPS_IN_PERIOD[p][-1]] == 0
-    #)
+    m.Hydrogen_Conservation_of_Mass_Annual = Constraint(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
+        m.HydrogenStorageStateKg[z, m.TPS_IN_PERIOD[p][1]] - m.HydrogenStorageStateKg[z, m.TPS_IN_PERIOD[p][-1]] == 0
+    )
 
-    m.Hydrogen_Conservation_of_Mass_Annual_Start = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
-        m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][1]] == 0
-    )
-    m.Hydrogen_Conservation_of_Mass_Annual_End = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
-        m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][-1]] == 0
-    )
+    #m.Hydrogen_Conservation_of_Mass_Annual_Start = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
+    #    m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][1]] == 0
+    #)
+    #m.Hydrogen_Conservation_of_Mass_Annual_End = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
+    #    m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][-1]] == 0
+    #)
 
     def Min_Storage_State_rule(m, s, z, tp):
         if m.tp_previous[tp] == tp:
