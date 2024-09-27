@@ -246,7 +246,7 @@ def define_components(m):
     m.h2_storage_capital_cost_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
     m.h2_storage_fixed_om_per_kg = Param(m.H2_STORAGE_BUILD_YRS) #energy investment
     m.h2_storage_fixed_om_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
-    m.h2_storage_cap = Param(m.H2_STORAGE_ZONES, default=inf)
+    m.h2_storage_cap = Param(m.H2_STORAGE_ZONES, default=1e10)
 
     m.h2_storage_minimum_size_kg = Param(m.H2_STORAGE_PROJECTS, within=NonNegativeReals, default=0.0)
     m.h2_storage_life_years = Param(m.H2_STORAGE_PROJECTS, default=20)
