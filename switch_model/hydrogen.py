@@ -233,6 +233,10 @@ def define_components(m):
         dimen=3,
         initialize = m.H2_STORAGE_PROJECTS * m.LOAD_ZONES * m.PERIODS
         )
+    m.H2_STORAGE_ZONES = Set(
+        dimen=2,
+        initialize = m.H2_STORAGE_PROJECTS * m.LOAD_ZONES
+        )
     m.H2_STORAGE_TPS = Set(
         dimen=3,
         initialize = m.H2_STORAGE_PROJECTS * m.LOAD_ZONES * m.TIMEPOINTS
@@ -242,6 +246,7 @@ def define_components(m):
     m.h2_storage_capital_cost_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
     m.h2_storage_fixed_om_per_kg = Param(m.H2_STORAGE_BUILD_YRS) #energy investment
     m.h2_storage_fixed_om_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
+    m.h2_storage_cap = Param(m.H2_STORAGE_ZONES, default=inf)
 
     m.h2_storage_minimum_size_kg = Param(m.H2_STORAGE_PROJECTS, within=NonNegativeReals, default=0.0)
     m.h2_storage_life_years = Param(m.H2_STORAGE_PROJECTS, default=20)
@@ -266,6 +271,10 @@ def define_components(m):
             m.H2BuildMinStorageCap[g, z, p] * m.h2_storage_minimum_size_kg[g]
             <= m.BuildH2StorageKg[g, z, p]))
 
+    m.H2StorageLimits = Constraint(
+        m.H2_STORAGE_BUILD_YRS_ZONES, rule = lambda m, s, z, p:
+        m.H2StorageCapacityKg[s,z,p] <= m.h2_storage_cap[s,z]
+    )
 
     m.StoreHydrogenKgPerHour = Var(m.H2_STORAGE_TPS, within=NonNegativeReals)
     m.WithdrawHydrogenKgPerHour = Var(m.H2_STORAGE_TPS, within=NonNegativeReals)
@@ -890,6 +899,13 @@ def load_inputs(m, switch_data, inputs_dir):
         autoselect=True,
         index=m.h2_credit_years,
         param=(m.h2_ptc_value, m.h2_itc_value, m.h2_carbon_capture_credit))
+    
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, 'h2_storage_limits.csv'),
+        autoselect=True, optional=True,
+        index=(m.H2_STORAGE_ZONES),
+        param=(m.h2_storage_cap))
+
 
 
 def post_solve(instance, outdir):
