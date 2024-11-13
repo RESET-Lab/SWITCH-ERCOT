@@ -1,0 +1,8 @@
+component,npv_cost
+TotalGenFixedCosts,53361870.40189539
+LocalTDFixedCosts,25308765.15391765
+FuelCostsPerPeriod,35191208.69358335
+TxFixedCosts,2398398.145753939
+EmissionsCosts,0
+FlexibleEnergyFixedCost,0
+GenVariableOMCostsInTP,18472846.03414075

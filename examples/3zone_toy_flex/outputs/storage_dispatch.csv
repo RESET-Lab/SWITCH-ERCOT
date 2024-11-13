@@ -1,0 +1,15 @@
+generation_project,timepoint,load_zone,FlexChargeMW,DischargeMW,flexStateOfCharge
+N-Geothermal_Flex,2025011500,North,0,0,0
+N-Geothermal_Flex,2025011512,North,0,0,0
+N-Geothermal_Flex,2025011600,North,0,0,0
+N-Geothermal_Flex,2025011612,North,0,0,0
+N-Geothermal_Flex,2025061500,North,0,0,0
+N-Geothermal_Flex,2025061512,North,0,0,0
+N-Geothermal_Flex,2035011512,North,0,0,0
+S-Geothermal_Flex,2025011500,South,0,0,0
+S-Geothermal_Flex,2025011512,South,0,0,0
+S-Geothermal_Flex,2025011600,South,0,0,0
+S-Geothermal_Flex,2025011612,South,0,0,0
+S-Geothermal_Flex,2025061500,South,0,0,0
+S-Geothermal_Flex,2025061512,South,0,0,0
+S-Geothermal_Flex,2035011512,South,0,0,0
