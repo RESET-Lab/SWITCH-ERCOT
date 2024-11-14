@@ -1,3 +1,0 @@
-gave required input data in hydrogen.csv
-added storage module because i assume that is needed for it to build hydrogen
-Next: Adding hydrogen info to gen_build_costs and gen_build_info
