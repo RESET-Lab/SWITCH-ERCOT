@@ -11,10 +11,10 @@ except ImportError:
 def define_components(mod):
 
     # Make sure the model has dual and rc suffixes
-        if not hasattr(mod, "dual"):
-            mod.dual = Suffix(direction=Suffix.IMPORT)
-        if not hasattr(mod, "rc"):
-            mod.rc = Suffix(direction=Suffix.IMPORT)
+    if not hasattr(mod, "dual"):
+        mod.dual = Suffix(direction=Suffix.IMPORT)
+    if not hasattr(mod, "rc"):
+        mod.rc = Suffix(direction=Suffix.IMPORT)
 
 def write_dual_costs(m):
     outputs_dir = m.options.outputs_dir
@@ -37,7 +37,7 @@ def write_dual_costs(m):
     start_time = time.time()
     print("Writing {} ... ".format(outfile), end=' ')
 
-    def add_dual(const, lbound, ubound, duals, prefix='', offset=0.0):
+    def add_dual(m, const, lbound, ubound, duals, idx, prefix='', offset=0.0):
         if const in duals:
             dual = duals[const]
             if dual >= 0.0:
@@ -46,6 +46,12 @@ def write_dual_costs(m):
             else:
                 direction = "<="
                 bound = ubound
+
+            # TODO: Maybe add something to undo the weighting on constraints defined for investment periods
+            for i in idx:
+                if i in m.TIMEPOINTS and i not in m.PERIODS:
+                    dual = dual / m.bring_timepoint_costs_to_base_year[i]
+
             if bound is None:
                 # Variable is unbounded; dual should be 0.0 or possibly a tiny non-zero value.
                 if not (-1e-5 < dual < 1e-5):
@@ -62,9 +68,9 @@ def write_dual_costs(m):
             if var.value is not None:  # ignore vars that weren't used in the model
                 if var.is_integer() or var.is_binary():
                     # integrality constraint sets upper and lower bounds
-                    add_dual(var, value(var), value(var), m.rc, prefix='integer: ')
+                    add_dual(m, var, value(var), value(var), m.rc, idx, prefix='integer: ')
                 else:
-                    add_dual(var, var.lb, var.ub, m.rc)
+                    add_dual(m, var, var.lb, var.ub, m.rc, idx)
     for comp in m.component_objects(ctype=Constraint):
         for idx in comp:
             constr = comp[idx]
@@ -75,27 +81,17 @@ def write_dual_costs(m):
                 # (might be faster to do this once during model setup instead of every time)
                 standard_constraint = generate_standard_repn(constr.body)
                 if standard_constraint.constant is not None:
-                    offset = -standard_constraint.constant
-                add_dual(constr, value(constr.lower), value(constr.upper), m.dual, offset=offset)
+                    offset = -standard_constraint.constant                
+
+                add_dual(m, constr, value(constr.lower), value(constr.upper), m.dual, idx, offset=offset)
 
     #dual_data.sort(key=lambda r: (not r[0].startswith('DR_Convex_'), r[3] >= 0)+r)
 
     with open(outfile, 'w') as f:
         f.write(','.join(['constraint', 'direction', 'bound', 'dual', 'total_cost']) + '\n')
         f.writelines(','.join(map(str, r)) + '\n' for r in dual_data)
+        #f.writelines(','.join(map(str.replace(",", "."), r)) + '\n' for r in dual_data)
     print("time taken: {dur:.2f}s".format(dur=time.time()-start_time))
-
-# def electricity_marginal_cost(m, z, tp, prod):
-#     """Return marginal cost of providing product prod in load_zone z during timepoint tp."""
-#     if prod == 'energy':
-#         component = m.Zone_Energy_Balance[z, tp]
-#     elif prod == 'energy up':
-#         component = m.Satisfy_Spinning_Reserve_Up_Requirement[m.zone_balancing_area[z], tp]
-#     elif prod == 'energy down':
-#         component = m.Satisfy_Spinning_Reserve_Down_Requirement[m.zone_balancing_area[z], tp]
-#     else:
-#         raise ValueError('Unrecognized electricity product: {}.'.format(prod))
-#     return m.dual[component]/m.bring_timepoint_costs_to_base_year[tp]
 
 def post_solve(m, outdir):
     write_dual_costs(m)
