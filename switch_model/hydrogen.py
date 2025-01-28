@@ -201,7 +201,7 @@ def define_components(m):
     m.hydrogen_conv_capital_cost_per_mw = Param(m.H2_CONVERTERS, m.PERIODS)
     m.hydrogen_conv_fixed_cost_per_mw_year = Param(m.H2_CONVERTERS, m.PERIODS, default=0.0)
     m.hydrogen_conv_variable_cost_per_mwh = Param(m.H2_CONVERTERS, m.PERIODS, default=0.0) # assumed to include any refurbishment needed
-    m.hydrogen_conv_mwh_per_kg = Param(m.H2_CONVERTERS)
+    m.hydrogen_conv_kg_per_mwh = Param(m.H2_CONVERTERS)
     m.hydrogen_conv_life_years = Param(m.H2_CONVERTERS)
     m.BuildConverterMW = Var(m.H2_CONV_BLD_YRS, within=NonNegativeReals)
     m.ConverterCapacityMW = Expression(m.H2_CONV_BLD_YRS, rule=lambda m, g, z, p:
@@ -211,7 +211,7 @@ def define_components(m):
     m.Max_Dispatch_Converter = Constraint(m.H2_CONVERTERS, m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, g, z, t:
         m.DispatchConverterMW[g, z, t] <= m.ConverterCapacityMW[g, z, m.tp_period[t]])
     m.ConsumeHydrogenKgPerHour = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
-        sum(m.DispatchConverterMW[g, z, t] / m.hydrogen_conv_mwh_per_kg[g] for g in m.H2_CONVERTERS)
+        sum(m.DispatchConverterMW[g, z, t] * m.hydrogen_conv_kg_per_mwh[g] for g in m.H2_CONVERTERS)
     )
     m.ConverterZonalDispatch = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
         sum(m.DispatchConverterMW[g, z, t] for g in m.H2_CONVERTERS))
@@ -826,7 +826,7 @@ def load_inputs(m, switch_data, inputs_dir):
         index=m.H2_CONVERTERS,
         param=(
             m.hydrogen_conv_life_years,
-            m.hydrogen_conv_mwh_per_kg,
+            m.hydrogen_conv_kg_per_mwh,
         )
     )
 
