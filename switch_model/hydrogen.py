@@ -210,6 +210,9 @@ def define_components(m):
     m.DispatchConverterMW = Var(m.H2_CONVERTERS, m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
     m.Max_Dispatch_Converter = Constraint(m.H2_CONVERTERS, m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, g, z, t:
         m.DispatchConverterMW[g, z, t] <= m.ConverterCapacityMW[g, z, m.tp_period[t]])
+    m.ConsumeHydrogenKgPerHourPerTech = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, g, z, t:
+        m.DispatchConverterMW[g, z, t] * m.hydrogen_conv_kg_per_mwh[g]
+    )
     m.ConsumeHydrogenKgPerHour = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
         sum(m.DispatchConverterMW[g, z, t] * m.hydrogen_conv_kg_per_mwh[g] for g in m.H2_CONVERTERS)
     )
@@ -978,10 +981,10 @@ def post_solve(instance, outdir):
     reporting.write_table(
         instance, instance.H2_CONVERTERS*instance.LOAD_ZONES*instance.TIMEPOINTS,
         output_file=os.path.join(outdir, "converter_dispatch.csv"),
-        headings=("H2_CONVERTERS", "Load Zone", "timepoint", "DispatchConverterMW"),
+        headings=("H2_CONVERTERS", "Load Zone", "timepoint", "DispatchConverterMW", "ConsumeHydrogenKgPerHour"),
         values=lambda m, g, z, t: (
             g, z, m.tp_timestamp[t],
-             m.DispatchConverterMW[g, z, t]
+             m.DispatchConverterMW[g, z, t], m.ConsumeHydrogenKgPerHourPerTech[g,z,t]
             ))
     reporting.write_table(
         instance, instance.HNODE_TPS,
