@@ -210,7 +210,7 @@ def define_components(m):
     m.DispatchConverterMW = Var(m.H2_CONVERTERS, m.LOAD_ZONES, m.TIMEPOINTS, within=NonNegativeReals)
     m.Max_Dispatch_Converter = Constraint(m.H2_CONVERTERS, m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, g, z, t:
         m.DispatchConverterMW[g, z, t] <= m.ConverterCapacityMW[g, z, m.tp_period[t]])
-    m.ConsumeHydrogenKgPerHourPerTech = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, g, z, t:
+    m.ConsumeHydrogenKgPerHourPerTech = Expression(m.H2_CONVERTERS, m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, g, z, t:
         m.DispatchConverterMW[g, z, t] * m.hydrogen_conv_kg_per_mwh[g]
     )
     m.ConsumeHydrogenKgPerHour = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
