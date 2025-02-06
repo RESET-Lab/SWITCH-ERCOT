@@ -252,6 +252,7 @@ def define_components(m):
     m.h2_storage_cap = Param(m.H2_STORAGE_BUILD_YRS_ZONES, default=1e7)
 
     m.h2_storage_minimum_size_kg = Param(m.H2_STORAGE_PROJECTS, within=NonNegativeReals, default=0.0)
+    m.h2_storage_efficiency = Param(m.H2_STORAGE_PROJECTS, within=NonNegativeReals, default=1.0)
     m.h2_storage_life_years = Param(m.H2_STORAGE_PROJECTS, default=20)
     m.BuildH2StorageKg = Var(m.H2_STORAGE_BUILD_YRS_ZONES, within=NonNegativeReals) # in kg
     m.BuildH2StorageKgPower = Var(m.H2_STORAGE_BUILD_YRS_ZONES, within=NonNegativeReals) # in kg
@@ -284,7 +285,7 @@ def define_components(m):
     m.HydrogenStorageStateKg = Var(m.H2_STORAGE_TPS)#, within=NonNegativeReals, initialize=0)
 
     m.HydrogenNetStorageKg = Expression(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
-        (m.StoreHydrogenKgPerHour[s, z, tp] - m.WithdrawHydrogenKgPerHour[s, z, tp]) * m.tp_duration_hrs[tp])
+        (m.StoreHydrogenKgPerHour[s, z, tp]*m.h2_storage_efficiency[s] - m.WithdrawHydrogenKgPerHour[s, z, tp]) * m.tp_duration_hrs[tp])
 
     m.HydrogenStoreUpperLimit = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
         m.StoreHydrogenKgPerHour[s, z, tp] <= m.H2StorageCapacityKgPerHour[s, z, m.tp_period[tp]])
@@ -307,7 +308,7 @@ def define_components(m):
 
         #for the rare case of a period with a single timepoint
         if m.tp_previous[tp] == tp:
-            return m.HydrogenStorageStateKg[s, z, tp] == (m.StoreHydrogenKgPerHour[s, z, tp] - m.WithdrawHydrogenKgPerHour[s, z, tp]) * m.tp_duration_hrs[tp]
+            return m.HydrogenStorageStateKg[s, z, tp] == (m.StoreHydrogenKgPerHour[s, z, tp]*m.h2_storage_efficiency[s] - m.WithdrawHydrogenKgPerHour[s, z, tp]) * m.tp_duration_hrs[tp]
 
         else:
             return m.HydrogenStorageStateKg[s, z, tp] ==  m.HydrogenStorageStateKg[s, z, m.tp_previous[tp]] + \
@@ -861,6 +862,7 @@ def load_inputs(m, switch_data, inputs_dir):
         param=(
             m.h2_storage_life_years,
             m.h2_storage_minimum_size_kg,
+            m.h2_storage_efficiency,
             m.IS_PX
         )
     )
