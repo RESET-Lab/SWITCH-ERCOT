@@ -140,10 +140,10 @@ def define_components(m):
     m.CCS_credit = Var(m.GEN_TPS, domain=NonNegativeReals)
 
     m.CCS_credit_lower_bound = Constraint(
-        m.GEN_TPS, rule=lambda m, g, t: m.CCS_credit[g, t] <= m.CCS_CapacityInTP[g, t]
+        m.CCS_EQUIPPED_GENS*m.TIMEPOINTS, rule=lambda m, g, t: m.CCS_credit[g, t] <= m.CCS_CapacityInTP[g, t]*m.gen_ccs_capture_efficiency[g]
     )
     m.CCS_credit_upper_bound = Constraint(
-        m.GEN_TPS, rule=lambda m, g, t: m.CCS_credit[g, t] <= m.DispatchGen[g, t]
+        m.CCS_EQUIPPED_GENS*m.TIMEPOINTS, rule=lambda m, g, t: m.CCS_credit[g, t] <= m.DispatchGen[g, t]*m.gen_ccs_capture_efficiency[g]
     )
 
     # Calculate PTC
@@ -151,11 +151,11 @@ def define_components(m):
         m.TIMEPOINTS,
         rule=lambda m, t: sum(
             -m.CCS_credit[g, t] * m.gen_full_load_heat_rate[g] * m.carbon_capture_credit[m.tp_period[t], m.gen_tech[g]] 
-                * sum(m.gen_ccs_capture_efficiency[g] * m.f_co2_intensity[f] for f in m.FUELS_FOR_GEN[g])
+                * sum(m.f_co2_intensity[f] for f in m.FUELS_FOR_GEN[g])
             for g in m.GENS_IN_PERIOD[m.tp_period[t]]
             if m.gen_tech[g] in set([item[1] for item in m.credit_years.data()])
-            and m.tp_period[t] < 2043
-            and g in m.FUEL_BASED_GENS
+            and m.tp_period[t] < 2040
+            and g in m.CCS_EQUIPPED_GENS
         ),
     )
     m.Cost_Components_Per_TP.append("CCS_credit_per_tp")
