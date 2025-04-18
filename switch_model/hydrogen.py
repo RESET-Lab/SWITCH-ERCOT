@@ -266,14 +266,14 @@ def define_components(m):
     #    m.tp_duration_hrs[tp] * m.CompressHydrogenKgPerHour[z, tp])
 
     # Defining minimum build capacities
-    m.H2BuildMinStorageCap = Var(
-        m.H2_STORAGE_BUILD_YRS_ZONES,
-        within=Binary)
-    m.Enforce_Min_Build_Lower_H2 = Constraint(
-        m.H2_STORAGE_BUILD_YRS_ZONES,
-        rule=lambda m, g, z, p: (
-            m.H2BuildMinStorageCap[g, z, p] * m.h2_storage_minimum_size_kg[g]
-            <= m.BuildH2StorageKg[g, z, p]))
+    # m.H2BuildMinStorageCap = Var(
+    #     m.H2_STORAGE_BUILD_YRS_ZONES,
+    #     within=Binary)
+    # m.Enforce_Min_Build_Lower_H2 = Constraint(
+    #     m.H2_STORAGE_BUILD_YRS_ZONES,
+    #     rule=lambda m, g, z, p: (
+    #         m.H2BuildMinStorageCap[g, z, p] * m.h2_storage_minimum_size_kg[g]
+    #         <= m.BuildH2StorageKg[g, z, p]))
 
     m.H2StorageLimits = Constraint(
         m.H2_STORAGE_BUILD_YRS_ZONES, rule = lambda m, s, z, p:
