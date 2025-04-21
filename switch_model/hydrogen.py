@@ -299,8 +299,8 @@ def define_components(m):
 
     #m.HydrogenNetStorageLimit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
     #    m.HydrogenNetStorageKg[z, tp] <= m.H2StorageCapacityKgPerHour[z, m.tp_period[tp]])
-    m.Prevent_Simultaneous_Charge_Discharge = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
-        m.WithdrawHydrogenKgPerHour[s, z, tp] * m.StoreHydrogenKgPerHour[s, z, tp] == 0)
+    # m.Prevent_Simultaneous_Charge_Discharge = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
+    #     m.WithdrawHydrogenKgPerHour[s, z, tp] * m.StoreHydrogenKgPerHour[s, z, tp] == 0)
     
     #Constraint to track storage state, but it breaks for periods with a single timepoint, so I added in something to account for that
     #That likely won't ever come up for real test cases, but it should be included so I can keep testing on the 3_zone_toy
