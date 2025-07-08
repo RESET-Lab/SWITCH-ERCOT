@@ -72,18 +72,7 @@ def define_components(mod):
 
     mod.state_owned_target = Param(
         within=PercentFraction)
-    # mod.RPSFuelEnergy = Expression(
-    #     mod.RPS_PERIODS,
-    #     rule=lambda m, p: sum(
-    #         m.tp_weight[t] *
-    #         sum(
-    #             m.GenFuelUseRate[g, t, f]
-    #             for f in m.FUELS_FOR_GEN[g]
-    #             if m.f_rps_eligible[f]
-    #         ) / m.gen_full_load_heat_rate[g]
-    #         for g in m.FUEL_BASED_GENS
-    #         for t in m.TPS_FOR_GEN_IN_PERIOD[g, p])
-    #     )
+
     mod.StateOwnedEnergy = Expression(
         mod.PERIODS,
         rule=lambda m, p: sum(m.DispatchGen[g, t] * m.tp_weight[t]
@@ -92,10 +81,8 @@ def define_components(mod):
 
     mod.State_Owned_Enforce_Target = Constraint(
         mod.PERIODS,
-        #rule=lambda m, p: (m.RPSFuelEnergy[p] + m.RPSNonFuelEnergy[p] >=
         rule=lambda m, p: (m.StateOwnedEnergy[p] >= 
             m.state_owned_target * total_generation_in_period(m, p)))
-            #m.rps_target[p] * total_demand_in_period(m, p)))
             
 
 
