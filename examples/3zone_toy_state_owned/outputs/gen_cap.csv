@@ -1,7 +1,7 @@
 GENERATION_PROJECT,PERIOD,gen_tech,gen_load_zone,gen_energy_source,GenCapacity,GenCapitalCosts,GenFixedOMCosts
 N-Geothermal,2020,Geothermal,North,Geothermal,1,458318,0
 N-Geothermal,2030,Geothermal,North,Geothermal,1,458318,0
-N-Coal_IGCC,2020,Coal_IGCC,North,Coal,16.278,4.62376e+06,470809
+N-Coal_IGCC,2020,Coal_IGCC,North,Coal,0,0,0
 N-Coal_IGCC,2030,Coal_IGCC,North,Coal,22.0119,6.25247e+06,636650
 N-Coal_IGCC_CCS,2030,Coal_IGCC_CCS,North,Coal,0,0,0
 N-Coal_ST,2020,Coal_ST,North,Coal,2,411840,42780
@@ -30,8 +30,8 @@ N-Wind-2,2030,Wind,North,Wind,0,0,0
 C-Coal_IGCC,2020,Coal_IGCC,Central,Coal,0,0,0
 C-Coal_IGCC,2030,Coal_IGCC,Central,Coal,0,0,0
 C-Coal_ST,2020,Coal_ST,Central,Coal,2,411840,42780
-C-NG_CC,2020,NG_CC,Central,NaturalGas,2,226820,11736.6
-C-NG_CC,2030,NG_CC,Central,NaturalGas,0,0,0
+C-NG_CC,2020,NG_CC,Central,NaturalGas,2.19956,245142,12673.4
+C-NG_CC,2030,NG_CC,Central,NaturalGas,0.199556,18322.2,936.844
 C-NG_GT,2020,NG_GT,Central,NaturalGas,2,125164,9783.6
 C-NG_GT,2030,NG_GT,Central,NaturalGas,0,0,0
 C-Nuclear,2030,Nuclear,Central,Uranium,0,0,0

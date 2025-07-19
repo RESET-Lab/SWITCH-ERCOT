@@ -58,6 +58,7 @@ def define_components(mod):
         filter=lambda m, g: m.state_owned[g])
 
     mod.state_owned_target = Param(
+        mod.PERIODS,
         within=PercentFraction)
 
     mod.StateOwnedEnergy = Expression(
@@ -69,7 +70,7 @@ def define_components(mod):
     mod.State_Owned_Enforce_Target = Constraint(
         mod.PERIODS,
         rule=lambda m, p: (m.StateOwnedEnergy[p] >= 
-            m.state_owned_target * total_generation_in_period(m, p)))
+            m.state_owned_target[p] * total_generation_in_period(m, p)))
             
 
 
