@@ -249,7 +249,7 @@ def define_components(m):
     m.h2_storage_capital_cost_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
     m.h2_storage_fixed_om_per_kg = Param(m.H2_STORAGE_BUILD_YRS) #energy investment
     m.h2_storage_fixed_om_per_kg_per_hour = Param(m.H2_STORAGE_BUILD_YRS) #power investment
-    m.h2_storage_cap = Param(m.H2_STORAGE_BUILD_YRS_ZONES, default=1e7)
+    m.h2_storage_cap = Param(m.H2_STORAGE_BUILD_YRS_ZONES, default=1e9)
 
     m.h2_storage_minimum_size_kg = Param(m.H2_STORAGE_PROJECTS, within=NonNegativeReals, default=0.0)
     m.h2_storage_efficiency = Param(m.H2_STORAGE_PROJECTS, within=NonNegativeReals, default=1.0)
@@ -334,23 +334,11 @@ def define_components(m):
         return m.HydrogenStorageStateKg[s, z, tp] == m.HydrogenStorageStateKg[s, z, finalPointOfSeries] + \
         m.HydrogenNetStorageKg[s, z, tp]
 
-    #At first glance this constraint appears to work, but the behavior of the model is MUCH different once this is in place, so I need
-    #to look more closely before I can be sure. Did I check this? I think so? WHo knows anymore
     m.Track_Storage_State_TS = Constraint(m.H2_STORAGE_PROJECTS, m.LOAD_ZONES, m.IS_STARTING_TP, rule=Track_Storage_State_TS_rule)
 
-
-    #going to try a slightly different way to track annual storage. If I constrained it such that the first and last timepoint of a period
-    #must have a storagestate of 0, I think that might also solve this weird bug?
     m.Hydrogen_Conservation_of_Mass_Annual = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
         m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][1]] - m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][-1]] == 0
     )
-
-    #m.Hydrogen_Conservation_of_Mass_Annual_Start = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
-    #    m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][1]] == 0
-    #)
-    #m.Hydrogen_Conservation_of_Mass_Annual_End = Constraint(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
-    #    m.HydrogenStorageStateKg[s, z, m.TPS_IN_PERIOD[p][-1]] == 0
-    #)
 
     def Min_Storage_State_rule(m, s, z, tp):
         if m.tp_previous[tp] == tp:
@@ -362,19 +350,6 @@ def define_components(m):
     m.Max_Storage_State = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
         m.HydrogenStorageStateKg[s, z, tp] <= m.H2StorageCapacityKg[s, z, m.tp_period[tp]])
 
-    #Seems odd to me that the original scaled it to a single year and not to the full period, but I will run with it for now
-    #Scaling by year and scaling by period lead to the same outcome in this case
-    #m.Hydrogen_Conservation_of_Mass_Annual = Constraint(m.LOAD_ZONES, m.PERIODS, rule=lambda m, z, p:
-    #    sum(
-    #        (m.StoreHydrogenKgPerHour[z, tp] - m.WithdrawHydrogenKgPerHour[z, tp])
-    #            * m.tp_weight[tp]
-    #            #* m.tp_weight_in_year[tp]
-    #        for tp in m.TPS_IN_PERIOD[p]
-    #    ) == 0
-    #)
-
-    #Also should definitely have some type of efficiency for these since round trip efficiency is VERY relevant for this
-    #Round trip is relevant for fuel cells, not the storage itself really
     m.StoreHydrogenKgPerHourZonal = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
         sum(m.StoreHydrogenKgPerHour[s, z, t] for s in m.H2_STORAGE_PROJECTS))
     m.WithdrawHydrogenKgPerHourZonal = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
@@ -382,9 +357,6 @@ def define_components(m):
 
     m.Hydrogen_Withdrawals.append('StoreHydrogenKgPerHourZonal')
     m.Hydrogen_Injections.append('WithdrawHydrogenKgPerHourZonal')
-
-
-
 
 
     """
@@ -524,8 +496,6 @@ def define_components(m):
         rule=lambda m, node_from, node_to, p, tp: (
             m.DispatchPtx[node_from, node_to, p, tp] *
             m.pipes_efficiency[p]))
-            #m.PtxEffectiveEfficiency[m.pipes_d_line[node_from, node_to], m.tp_period[tp]]))
-            #0.98))
 
     def PTXPowerNet_calculation(m, h, tp):
         return (sum(
