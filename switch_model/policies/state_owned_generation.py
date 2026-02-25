@@ -70,18 +70,18 @@ def define_components(mod):
     mod.State_Owned_Enforce_Target = Constraint(
         mod.PERIODS,
         rule=lambda m, p: (m.StateOwnedEnergy[p] >= 
-            m.state_owned_target[p] * total_generation_in_period(m, p)))
+            m.state_owned_target[p] * total_generation_in_period_sog(m, p)))
             
 
 
-def total_generation_in_period(model, period):
+def total_generation_in_period_sog(model, period):
     return sum(
         model.DispatchGen[g, t] * model.tp_weight[t]
         for g in model.GENERATION_PROJECTS
             for t in model.TPS_FOR_GEN_IN_PERIOD[g, period])
 
 
-def total_demand_in_period(model, period):
+def total_demand_in_period_sog(model, period):
     return sum(model.zone_total_demand_in_period_mwh[zone, period]
                for zone in model.LOAD_ZONES)
 
