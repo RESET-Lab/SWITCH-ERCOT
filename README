@@ -1,4 +1,8 @@
-This contains version 2 of the Switch electricity planning model.
+This repo contains a custom version of the electricity planning model 
+Switch 2.0.6 that has been modified to contain custom code to develop 
+models for the Texas Interconnection. The original Switch 2 model is 
+available here: https://github.com/switch-model/switch
+
 This optimization model is modular and can be used with varying levels
 of complexity. Look in the examples directory for demonstrations of
 using Switch for investment planning or production cost simulation. The
