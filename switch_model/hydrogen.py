@@ -3,60 +3,6 @@ import os
 from pyomo.environ import *
 from switch_model.financials import capital_recovery_factor as crf
 
-"""
-TO-DO:
-    - check cost functions (Use data sources from Javier's work to start for cost data, then go from there)
-        - Perhaps allow costs to vary by period to account for learning rates and stuff? I think I remember SWITCH being able to do that?
-        - The actual cost calculations in SWITCH make complete, but I will need to update and verify the inputs of course
-        - Pipeline costs are currently calculated separately, double check this calculate and potentially combine into single cost function
-    - PIPELINES:
-        - reincorporate pipelines and start adding in pipeline specific information (currently just a clone of the transmission lines)
-            - Blending limits for existing pipelines (DONE)
-            - Compression
-            - Options for retrofitting? AND option to build new pure hydrogen pipelines
-        - determine best way to include existing pipeline infrastructure
-            - I have a basic version now, take a look at the transmission_lines.csv file
-              in Pedro's dataset to see what other information might be relevant
-        - Remember to go back and correct the efficiencies
-            - How should we be defining pipeline efficiency? It's not like it gets dissipated. Define in terms of pressure drop? Why does that matter though?
-    - STORAGE:
-        - THE BUG IS STILL HAPPENING
-            - Temporary fix: Set the start and end of the period to have zero storage. No there is no storage happening anywhere -> 2023 update: Go see if this is fixed
-        - Possibly change period mass balance to allow period to end with more storage than it started?
-            - If I were to do this I would then also have to apply the current TS storage constraint to the TS at the start of the period as well
-        - Is 100% efficiency for storage reasonable?
-            - Seems right for compressed gas
-            - Might be nonzero for liquid storage; I seem to recall it had a nonnegligible boil-off
-            - Also injection and withdrawal rates? Look at how SWITCH WECC defines power and energy capacities to get an understanding of the formulation
-                - Not SWITCH WECC, but normal switch does not explicitly define the charge/discharge limit as a decision variable. They provide a ratio of the
-                energy to power (which would correspond to duration) and used that to define the power limits
-        - Need to implement costs for charge/discharge rates, since right now using short-term H2 storage, which I thought was not cost effective?
-            - Yeah Bodal has investment costs for both power and energy, but right now we only have energy
-            - Define as a decision variable, constraint the withdrawl and storage variables, and add to overall cost
-        - Should I track the remaining storage when I go from one timeseries to the next? Would help with long duration storage?
-            - YES
-        - Ramping rates?
-    - ELECTROLYSIS AND FUEL CELLS:
-        - Minimum generation rates?
-        - Tie electrolysis production to energy produced by renewables
-            - Sum of all the electrolysis production must be less than the sum of all the production from variable generation?
-                - Done, but still need to figure out how to deal with stored renewables
-            - Model was infeasible when I added the constraint to implement green hydrogen
-                - Because of the capacity limits on wind and solar in these inputs, feasible when limits are removed
-            - Currently debugging
-                - Hydrogen demand is being met, but need to verify electricity demand still
-                - Done, kind of. There are still some weird storage outcomes, but I think those will be fixed once I can track storage between timeseries
-        - Constrain fuel cells so that it cannot consume more hydrogen than what is withdrawn from storage
-            -This should already be covered by the mass balance, but will need to double check
-                - Difficult to know for sure when the fuel cells are not being used ever in these tests really
-            -Be careful to avoid double counting any hydrogen used.
-                - In fact you may want to take the hydrogen used for fuel cells out of the mass balance - why would I do that?
-    - Account for geologic storage
-    - Should I split these things into different modules? I think eventually that would be wise but for now we can consolidate
-
-"""
-
-
 def define_dynamic_lists(m):
     """
     Zone_Power_Injections and Zone_Power_Withdrawals are lists of
@@ -218,8 +164,6 @@ def define_components(m):
     )
     m.ConverterZonalDispatch = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, t:
         sum(m.DispatchConverterMW[g, z, t] for g in m.H2_CONVERTERS))
-    #m.Hydrogen_For_Fuel_Cells_Limit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m,z,t:
-    #    m.ConsumeHydrogenKgPerHour[z,t] <= m.HydrogenStorageStateKg[z, m.tp_previous[t]])
     m.Hydrogen_Withdrawals.append('ConsumeHydrogenKgPerHour')
     m.Zone_Power_Injections.append('ConverterZonalDispatch')
 
@@ -262,18 +206,7 @@ def define_components(m):
     m.H2StorageCapacityKgPerHour = Expression(m.H2_STORAGE_BUILD_YRS_ZONES, rule=lambda m, s, z, p:
         sum(m.BuildH2StorageKgPower[s, z, p_] for p_ in m.CURRENT_AND_PRIOR_PERIODS_FOR_PERIOD[p]
         if ((p - p_) < m.h2_storage_life_years[s])))
-    #m.StoreHydrogenKgPerHour = Expression(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
-    #    m.tp_duration_hrs[tp] * m.CompressHydrogenKgPerHour[z, tp])
 
-    # Defining minimum build capacities
-    # m.H2BuildMinStorageCap = Var(
-    #     m.H2_STORAGE_BUILD_YRS_ZONES,
-    #     within=Binary)
-    # m.Enforce_Min_Build_Lower_H2 = Constraint(
-    #     m.H2_STORAGE_BUILD_YRS_ZONES,
-    #     rule=lambda m, g, z, p: (
-    #         m.H2BuildMinStorageCap[g, z, p] * m.h2_storage_minimum_size_kg[g]
-    #         <= m.BuildH2StorageKg[g, z, p]))
     m.Enforce_Min_Build_Lower_H2 = Constraint(
         m.H2_STORAGE_BUILD_YRS_ZONES,
         rule=lambda m, g, z, p: (
@@ -286,7 +219,7 @@ def define_components(m):
 
     m.StoreHydrogenKgPerHour = Var(m.H2_STORAGE_TPS, within=NonNegativeReals)
     m.WithdrawHydrogenKgPerHour = Var(m.H2_STORAGE_TPS, within=NonNegativeReals)
-    m.HydrogenStorageStateKg = Var(m.H2_STORAGE_TPS)#, within=NonNegativeReals, initialize=0)
+    m.HydrogenStorageStateKg = Var(m.H2_STORAGE_TPS)
 
     m.HydrogenNetStorageKg = Expression(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
         (m.StoreHydrogenKgPerHour[s, z, tp]*m.h2_storage_efficiency[s] - m.WithdrawHydrogenKgPerHour[s, z, tp]) * m.tp_duration_hrs[tp])
@@ -296,11 +229,6 @@ def define_components(m):
 
     m.HydrogenWithdrawUpperLimit = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
         m.WithdrawHydrogenKgPerHour[s, z, tp] <= m.H2StorageCapacityKgPerHour[s, z, m.tp_period[tp]])
-
-    #m.HydrogenNetStorageLimit = Constraint(m.LOAD_ZONES, m.TIMEPOINTS, rule=lambda m, z, tp:
-    #    m.HydrogenNetStorageKg[z, tp] <= m.H2StorageCapacityKgPerHour[z, m.tp_period[tp]])
-    # m.Prevent_Simultaneous_Charge_Discharge = Constraint(m.H2_STORAGE_TPS, rule=lambda m, s, z, tp:
-    #     m.WithdrawHydrogenKgPerHour[s, z, tp] * m.StoreHydrogenKgPerHour[s, z, tp] == 0)
     
     #Constraint to track storage state, but it breaks for periods with a single timepoint, so I added in something to account for that
     #That likely won't ever come up for real test cases, but it should be included so I can keep testing on the 3_zone_toy
@@ -317,7 +245,6 @@ def define_components(m):
         else:
             return m.HydrogenStorageStateKg[s, z, tp] ==  m.HydrogenStorageStateKg[s, z, m.tp_previous[tp]] + \
             m.HydrogenNetStorageKg[s, z, tp]
-            #(m.StoreHydrogenKgPerHour[z, tp] - m.WithdrawHydrogenKgPerHour[z, tp]) * m.tp_duration_hrs[tp]
 
     m.Track_Storage_State_TP = Constraint(m.H2_STORAGE_TPS, rule=Track_Storage_State_TP_rule)
 
@@ -426,9 +353,7 @@ def define_components(m):
         cap = sum(m.BuildPtx[r, p, bld_yr]
             for bld_yr in m.PERIODS
             if bld_yr <= period and (r, p, bld_yr) in m.PIPELINES_BLD_YRS)
-
-        # Returning to this code 2 years later, is this double counting pre-existing builds??
-        # No I don't think so since the pre existing capacity would not be counted in the BuildPtx variable
+        
         if m.is_pre_existing[p]:
             cap += m.existing_pipes_cap[r]
 
@@ -610,7 +535,6 @@ def define_components(m):
         if gen == g and
             conv_build_can_operate_in_period(m, g, bld_yr, period)))
 
-    #Review this later, because this might have to change from using capacities to using Build variables for everything -> Done
     m.HydrogenFixedCostAnnual = Expression(m.PERIODS, rule=lambda m, p:
         sum(
             sum(m.BuildH2Gen[g, z, p_] * m.capital_cost_per_kgh[g, p_] * crf(m.interest_rate, m.life_years[g]) for (g,p_) in m.H2_BLD_YRS_FOR_GEN_PERIOD)
@@ -635,13 +559,11 @@ def define_components(m):
         m.h2_credit_years,
         default=0,
         domain=NonNegativeReals#,
-        #doc="Production Tax Credit (PTC) for given technology by period. Data in $/MWh",
     )
     m.h2_itc_value = Param(
         m.h2_credit_years,
         default=0,
-        domain=NonNegativeReals#,
-        #doc="Investment Tax Credit (ITC) for given technology by period. Data in $/MW",
+        domain=NonNegativeReals,
     )
     m.h2_carbon_capture_credit = Param(
         m.h2_credit_years,
@@ -889,21 +811,12 @@ def load_inputs(m, switch_data, inputs_dir):
 
 def post_solve(instance, outdir):
     """
-    Export storage build information to storage_builds.csv, and storage
-    dispatch info to storage_dispatch.csv
+    Export hydrogen build and dispatch information
 
     """
 
     import switch_model.reporting as reporting
 
-    #Misc output table I can use for debugging
-    #reporting.write_table(
-    #    instance, instance.IS_STARTING_TP,
-    #    output_file=os.path.join(outdir, "timetest.csv"),
-    #    headings=("TP", 'TS'),
-    #    values=lambda m, tp: (
-    #        tp, m.tp_ts[tp]
-    #    ))
     reporting.write_table(
         instance, instance.H2_STORAGE_PROJECTS*instance.LOAD_ZONES*instance.PERIODS,
         output_file=os.path.join(outdir, "hydrogen_storage_build.csv"),
